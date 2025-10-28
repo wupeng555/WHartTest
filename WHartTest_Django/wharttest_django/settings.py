@@ -132,12 +132,25 @@ WSGI_APPLICATION = 'wharttest_django.wsgi.application'
 #         'default': dj_database_url.config(conn_max_age=600, ssl_require=os.environ.get('DJANGO_DB_SSL', 'False') == 'True')
 #     }
 # else:
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+
+# 支持通过环境变量配置数据库路径，用于 Docker 部署
+DATABASE_PATH = os.environ.get('DATABASE_PATH')
+if DATABASE_PATH:
+    # 使用环境变量指定的路径（Docker部署）
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': DATABASE_PATH,
+        }
     }
-}
+else:
+    # 使用默认路径（本地开发）
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation

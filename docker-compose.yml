@@ -31,8 +31,7 @@ services:
     #   context: ./WHartTest_Django
     #   dockerfile: Dockerfile
     container_name: wharttest-backend
-    # 启动Django、Celery Worker和Celery Beat在同一容器
-    command: bash -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000 & celery -A wharttest_django worker -l info --concurrency=4 & celery -A wharttest_django beat -l info --schedule=/app/data/celerybeat-schedule & wait"
+    # 启动逻辑已移至 Dockerfile 的 ENTRYPOINT 和 supervisord.conf
     ports:
       - "8912:8000"
     volumes:

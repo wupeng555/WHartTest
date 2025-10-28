@@ -131,10 +131,10 @@ class TestCaseSerializer(serializers.ModelSerializer):
     def get_screenshots(self, obj):
         """获取测试用例的所有截屏"""
         screenshots = obj.screenshots.all()
+        # 移除 context=self.context，确保 screenshot_url 生成相对路径
         return TestCaseScreenshotSerializer(
             screenshots,
-            many=True,
-            context=self.context
+            many=True
         ).data
 
 
@@ -236,25 +236,24 @@ class TestCaseScreenshotSerializer(serializers.ModelSerializer):
     测试用例截屏序列化器
     """
     uploader_detail = UserDetailSerializer(source='uploader', read_only=True)
-    screenshot_url = serializers.SerializerMethodField()
+    
+    # 用于“读”操作：显示相对 URL
+    screenshot_url = serializers.CharField(source='screenshot.url', read_only=True)
+    
+    # 用于“写”操作：接收上传的文件
+    screenshot = serializers.ImageField(write_only=True, required=False)
 
     class Meta:
         model = TestCaseScreenshot
         fields = [
-            'id', 'test_case', 'screenshot', 'screenshot_url', 'title', 'description',
+            'id', 'test_case',
+            'screenshot',       # 用于上传
+            'screenshot_url',   # 用于显示
+            'title', 'description',
             'step_number', 'created_at', 'mcp_session_id', 'page_url',
             'uploader', 'uploader_detail'
         ]
-        read_only_fields = ['id', 'created_at', 'uploader', 'uploader_detail']
-
-    def get_screenshot_url(self, obj):
-        """获取截屏图片的完整URL"""
-        if obj.screenshot:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.screenshot.url)
-            return obj.screenshot.url
-        return None
+        read_only_fields = ['id', 'created_at', 'uploader', 'uploader_detail', 'screenshot_url']
 
     def create(self, validated_data):
         """创建截屏时自动设置上传人"""
@@ -345,12 +344,15 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         return instance
 
 
+from urllib.parse import urlparse
+
 class TestCaseResultSerializer(serializers.ModelSerializer):
     """
     测试用例执行结果序列化器
     """
     testcase_detail = TestCaseSerializer(source='testcase', read_only=True)
     duration = serializers.ReadOnlyField()
+    screenshots = serializers.SerializerMethodField()
     
     class Meta:
         model = TestCaseResult
@@ -363,6 +365,19 @@ class TestCaseResultSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'duration'
         ]
+
+    def get_screenshots(self, obj):
+        """确保返回的截图URL是相对路径"""
+        if not obj.screenshots:
+            return []
+        
+        relative_urls = []
+        for url in obj.screenshots:
+            if url:
+                # 解析URL，只取路径部分
+                parsed_url = urlparse(url)
+                relative_urls.append(parsed_url.path)
+        return relative_urls
 
 
 class TestExecutionSerializer(serializers.ModelSerializer):

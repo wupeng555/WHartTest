@@ -105,43 +105,33 @@
       <pre class="execution-log">{{ getExecutionLog(selectedResult.testcase_id) }}</pre>
 
       <a-divider>执行截图</a-divider>
-      <div v-if="selectedResult.testcase_detail?.screenshots && selectedResult.testcase_detail.screenshots.length > 0">
+      <div v-if="selectedResult.screenshots && selectedResult.screenshots.length > 0">
         <div class="screenshot-count">
-          共 {{ selectedResult.testcase_detail.screenshots.length }} 张截图
+          共 {{ selectedResult.screenshots.length }} 张截图
         </div>
         <div class="screenshot-viewer-wrapper">
-          <div v-if="selectedResult.testcase_detail.screenshots[currentSlideIndex]" class="screenshot-info-panel">
-            <div class="screenshot-title">{{ selectedResult.testcase_detail.screenshots[currentSlideIndex].title }}</div>
-            <div class="screenshot-description">{{ selectedResult.testcase_detail.screenshots[currentSlideIndex].description }}</div>
-            <div class="screenshot-meta">
-              <span v-if="selectedResult.testcase_detail.screenshots[currentSlideIndex].step_number">
-                步骤 {{ selectedResult.testcase_detail.screenshots[currentSlideIndex].step_number }}
-              </span>
-              <span v-if="selectedResult.testcase_detail.screenshots[currentSlideIndex].page_url">
-                {{ selectedResult.testcase_detail.screenshots[currentSlideIndex].page_url }}
-              </span>
-            </div>
-          </div>
+          <!-- 截图信息面板暂时移除，因为顶层screenshots数组不包含title等详细信息 -->
+          <!-- 如果需要显示，后端需要在顶层screenshots中提供对象数组 -->
           <div class="screenshot-viewer">
             <div class="screenshot-container">
               <div class="screenshot-index">
-                {{ currentSlideIndex + 1 }} / {{ selectedResult.testcase_detail.screenshots.length }}
+                {{ currentSlideIndex + 1 }} / {{ selectedResult.screenshots.length }}
               </div>
               <img
-                :src="selectedResult.testcase_detail.screenshots[currentSlideIndex].screenshot_url"
+                :src="selectedResult.screenshots[currentSlideIndex]"
                 :key="currentSlideIndex"
                 class="screenshot-image"
               />
             </div>
             <button
-              v-if="selectedResult.testcase_detail.screenshots.length > 1"
+              v-if="selectedResult.screenshots.length > 1"
               class="custom-arrow custom-arrow-left"
               @click="handlePrev"
             >
               <icon-left />
             </button>
             <button
-              v-if="selectedResult.testcase_detail.screenshots.length > 1"
+              v-if="selectedResult.screenshots.length > 1"
               class="custom-arrow custom-arrow-right"
               @click="handleNext"
             >
@@ -284,8 +274,8 @@ const getStatusText = (status: string) => {
 const currentSlideIndex = ref(0);
 
 const handlePrev = () => {
-  if (!selectedResult.value?.testcase_detail?.screenshots) return;
-  const total = selectedResult.value.testcase_detail.screenshots.length;
+  if (!selectedResult.value?.screenshots) return;
+  const total = selectedResult.value.screenshots.length;
   if (!total || total <= 1) return;
   
   // 计算新的索引
@@ -293,8 +283,8 @@ const handlePrev = () => {
 };
 
 const handleNext = () => {
-  if (!selectedResult.value?.testcase_detail?.screenshots) return;
-  const total = selectedResult.value.testcase_detail.screenshots.length;
+  if (!selectedResult.value?.screenshots) return;
+  const total = selectedResult.value.screenshots.length;
   if (!total || total <= 1) return;
   
   // 计算新的索引
@@ -302,7 +292,7 @@ const handleNext = () => {
 };
 
 watch(
-  () => selectedResult.value?.testcase_detail?.screenshots,
+  () => selectedResult.value?.screenshots,
   (screens) => {
     if (!screens || screens.length === 0) return;
     currentSlideIndex.value = 0;
