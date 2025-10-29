@@ -449,6 +449,82 @@ class TestCaseViewSet(viewsets.ModelViewSet):
                 {'error': '截屏不存在'},
                 status=status.HTTP_404_NOT_FOUND
             )
+    @action(detail=True, methods=['post'], url_path='screenshots/batch-delete')
+    @permission_required('testcases.delete_testcasescreenshot')
+    def batch_delete_screenshots(self, request, project_pk=None, pk=None):
+        """
+        批量删除测试用例的截屏
+        POST /api/projects/{project_pk}/testcases/{pk}/screenshots/batch-delete/
+        请求体: {"ids": [1, 2, 3]}
+        """
+        testcase = self.get_object()
+        
+        # 获取要删除的截图ID列表
+        ids_data = request.data.get('ids', [])
+        
+        if not ids_data:
+            return Response(
+                {'error': '请提供要删除的截图ID列表'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 验证ID格式
+        try:
+            screenshot_ids = [int(id) for id in ids_data]
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'ids参数格式错误，应为数字列表'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not screenshot_ids:
+            return Response(
+                {'error': '截图ID列表不能为空'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 过滤出要删除的截图，确保只能删除当前测试用例下的截图
+        screenshots_to_delete = testcase.screenshots.filter(id__in=screenshot_ids)
+        
+        # 检查是否所有请求的ID都存在
+        found_ids = list(screenshots_to_delete.values_list('id', flat=True))
+        not_found_ids = [id for id in screenshot_ids if id not in found_ids]
+        
+        if not_found_ids:
+            return Response(
+                {
+                    'error': f'以下截图ID不存在或不属于当前测试用例: {not_found_ids}',
+                    'not_found_ids': not_found_ids
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 记录删除前的信息
+        deleted_screenshots_info = []
+        for screenshot in screenshots_to_delete:
+            deleted_screenshots_info.append({
+                'id': screenshot.id,
+                'title': screenshot.title or '无标题',
+                'step_number': screenshot.step_number
+            })
+        
+        # 执行批量删除
+        try:
+            with transaction.atomic():
+                deleted_count, _ = screenshots_to_delete.delete()
+                
+                return Response({
+                    'message': f'成功删除 {len(deleted_screenshots_info)} 张截图',
+                    'deleted_count': len(deleted_screenshots_info),
+                    'deleted_screenshots': deleted_screenshots_info
+                }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response(
+                {'error': f'删除过程中发生错误: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 
 class TestCaseModuleViewSet(viewsets.ModelViewSet):

@@ -936,3 +936,93 @@ export const deleteTestCaseScreenshot = async (
     };
   }
 };
+
+// 批量删除截图相关类型定义
+export interface BatchDeleteScreenshotsRequest {
+  ids: number[];
+}
+
+export interface BatchDeletedScreenshot {
+  id: number;
+  title: string;
+  step_number?: number;
+}
+
+export interface BatchDeleteScreenshotsResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    message: string;
+    deleted_count: number;
+    deleted_screenshots: BatchDeletedScreenshot[];
+  };
+  error?: string;
+  statusCode?: number;
+}
+
+/**
+ * 批量删除测试用例的截图
+ * @param projectId 项目ID
+ * @param testCaseId 测试用例ID
+ * @param screenshotIds 要删除的截图ID数组
+ * @returns 返回一个Promise，解析为批量删除结果
+ */
+export const batchDeleteTestCaseScreenshots = async (
+  projectId: number,
+  testCaseId: number,
+  screenshotIds: number[]
+): Promise<BatchDeleteScreenshotsResponse> => {
+  const authStore = useAuthStore();
+  const accessToken = authStore.getAccessToken;
+
+  if (!accessToken) {
+    return {
+      success: false,
+      error: '未登录或会话已过期',
+    };
+  }
+
+  if (!screenshotIds || screenshotIds.length === 0) {
+    return {
+      success: false,
+      error: '请选择要删除的截图',
+    };
+  }
+
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/projects/${projectId}/testcases/${testCaseId}/screenshots/batch-delete/`,
+      { ids: screenshotIds },
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      }
+    );
+
+    // 根据API文档，返回格式为 { status: 'success', code: 200, message: '批量删除操作成功完成', data: {...} }
+    if (response.data && response.data.status === 'success') {
+      return {
+        success: true,
+        message: response.data.message || '批量删除截图成功',
+        data: response.data.data,
+        statusCode: response.data.code,
+      };
+    } else {
+      return {
+        success: false,
+        error: response.data?.message || '批量删除截图失败：响应数据格式不正确',
+        statusCode: response.data?.code,
+      };
+    }
+  } catch (error: any) {
+    console.error('批量删除截图出错:', error);
+    return {
+      success: false,
+      error: error.response?.data?.message || error.message || '批量删除截图时发生错误',
+      statusCode: error.response?.status,
+    };
+  }
+};

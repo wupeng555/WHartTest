@@ -57,10 +57,29 @@
       <div class="screenshots-section">
         <div class="screenshots-header">
           <h3>截图</h3>
-          <a-button type="primary" size="small" @click="showUploadModal = true">
-            <template #icon><icon-plus /></template>
-            上传截图
-          </a-button>
+          <a-space>
+            <a-button type="primary" size="small" @click="showUploadModal = true">
+              <template #icon><icon-plus /></template>
+              上传截图
+            </a-button>
+            <a-checkbox
+              v-if="allScreenshots.length > 0"
+              :model-value="isAllSelected"
+              :indeterminate="isIndeterminate"
+              @change="handleSelectAll"
+            >
+              全选
+            </a-checkbox>
+            <a-button
+              v-if="selectedScreenshotIds.length > 0"
+              type="primary"
+              status="danger"
+              size="small"
+              @click="handleBatchDeleteScreenshots"
+            >
+              批量删除 ({{ selectedScreenshotIds.length }})
+            </a-button>
+          </a-space>
         </div>
 
         <!-- 多截图展示（新接口） -->
@@ -69,7 +88,14 @@
             v-for="screenshot in allScreenshots"
             :key="screenshot.id || screenshot.url"
             class="screenshot-item"
+            :class="{ 'selected': selectedScreenshotIds.includes(screenshot.id) }"
           >
+            <a-checkbox
+              v-if="screenshot.id"
+              class="screenshot-checkbox"
+              :model-value="selectedScreenshotIds.includes(screenshot.id)"
+              @change="toggleScreenshotSelection(screenshot.id)"
+            />
             <div class="screenshot-preview" @click="previewScreenshot(screenshot)">
               <img
                 :src="getScreenshotUrl(screenshot)"
@@ -280,6 +306,7 @@ import {
   uploadTestCaseScreenshots,
   getTestCaseScreenshots,
   deleteTestCaseScreenshot,
+  batchDeleteTestCaseScreenshots,
   type TestCase,
   type TestCaseStep,
   type TestCaseScreenshot,
@@ -329,6 +356,9 @@ const currentPreviewIndex = ref<number>(0); // 当前预览图片索引
 
 // 图片加载错误状态
 const imageLoadErrors = ref<Record<number, boolean>>({});
+
+// 批量删除截图相关状态
+const selectedScreenshotIds = ref<number[]>([]);
 
 const stepColumns = [
   { title: '步骤', dataIndex: 'step_number', width: 80 },
@@ -782,6 +812,104 @@ const handleImageError = (event: Event) => {
   Message.warning('部分截图无法加载，可能是网络问题或图片已被删除');
 };
 
+// 计算属性：是否全选
+const isAllSelected = computed(() => {
+  if (allScreenshots.value.length === 0) return false;
+  const validScreenshots = allScreenshots.value.filter(s => s.id); // 过滤有效ID的截图
+  return validScreenshots.length > 0 && selectedScreenshotIds.value.length === validScreenshots.length;
+});
+
+// 计算属性：是否为不确定状态(部分选中)
+const isIndeterminate = computed(() => {
+  const count = selectedScreenshotIds.value.length;
+  const validScreenshots = allScreenshots.value.filter(s => s.id);
+  return count > 0 && count < validScreenshots.length;
+});
+
+// 全选/取消全选
+const handleSelectAll = (checked: boolean) => {
+  if (checked) {
+    // 全选：选择所有有效ID的截图
+    selectedScreenshotIds.value = allScreenshots.value
+      .filter(s => s.id)
+      .map(s => s.id);
+  } else {
+    // 取消全选
+    selectedScreenshotIds.value = [];
+  }
+};
+
+// 切换截图选择状态
+const toggleScreenshotSelection = (screenshotId: number) => {
+  const index = selectedScreenshotIds.value.indexOf(screenshotId);
+  if (index > -1) {
+    selectedScreenshotIds.value.splice(index, 1);
+  } else {
+    selectedScreenshotIds.value.push(screenshotId);
+  }
+};
+
+// 批量删除截图
+const handleBatchDeleteScreenshots = () => {
+  if (!testCaseDetail.value || !currentProjectId.value || selectedScreenshotIds.value.length === 0) {
+    Message.warning('请选择要删除的截图');
+    return;
+  }
+
+  // 获取选中的截图信息用于显示
+  const selectedScreenshots = allScreenshots.value.filter(screenshot =>
+    selectedScreenshotIds.value.includes(screenshot.id)
+  );
+
+  const screenshotNames = selectedScreenshots.map(s => getScreenshotDisplayName(s)).join('、');
+  const displayNames = screenshotNames.length > 100 ?
+    screenshotNames.substring(0, 100) + '...' : screenshotNames;
+
+  Modal.warning({
+    title: '确认批量删除',
+    content: `确定要删除以下 ${selectedScreenshotIds.value.length} 张截图吗？此操作不可恢复。\n\n${displayNames}`,
+    okText: '确认删除',
+    cancelText: '取消',
+    width: 500,
+    onOk: async () => {
+      try {
+        const response = await batchDeleteTestCaseScreenshots(
+          currentProjectId.value!,
+          testCaseDetail.value!.id,
+          selectedScreenshotIds.value
+        );
+
+        if (response.success && response.data) {
+          // 显示详细的删除结果
+          const { deleted_count, deleted_screenshots } = response.data;
+
+          let detailMessage = `成功删除 ${deleted_count} 张截图`;
+          if (deleted_screenshots && deleted_screenshots.length > 0) {
+            const details = deleted_screenshots
+              .map(s => s.title || '无标题')
+              .slice(0, 5)
+              .join(', ');
+            detailMessage += `\n删除的截图: ${details}${deleted_screenshots.length > 5 ? '...' : ''}`;
+          }
+
+          Message.success(detailMessage);
+
+          // 清空选中状态并重新加载截图列表
+          selectedScreenshotIds.value = [];
+          if (testCaseDetail.value) {
+            await fetchScreenshots(testCaseDetail.value.id);
+          }
+        } else {
+          Message.error(response.error || '批量删除截图失败');
+        }
+      } catch (error) {
+        console.error('批量删除截图出错:', error);
+        Message.error('批量删除截图时发生错误');
+      }
+    },
+  });
+};
+
 </script>
 
 <style scoped>
@@ -930,6 +1058,37 @@ const handleImageError = (event: Event) => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
+}
+
+.screenshot-item {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e5e6eb;
+  border-radius: 8px;
+  background-color: #fff;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.screenshot-item:hover {
+  border-color: #165dff;
+  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.15);
+}
+
+.screenshot-item.selected {
+  border-color: #165dff;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.2);
+}
+
+.screenshot-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  padding: 2px;
 }
 
 .screenshot-item {
