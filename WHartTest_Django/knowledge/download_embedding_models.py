@@ -1,8 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-BGE-M3 嵌入模型下载脚本
-下载 BGE-M3 模型到本地缓存
+BGE-M3 嵌入模型下载脚本（已弃用）
+
+⚠️ 注意：此脚本已弃用，项目现使用 CustomAPIEmbeddings 通过 API 调用嵌入模型。
+   无需下载本地模型文件。
+
+如需使用本地嵌入模型，需要：
+1. 在 requirements.txt 中取消注释 sentence-transformers、torch 等依赖
+2. 安装这些依赖包（约 1GB+）
+3. 运行此脚本下载模型文件（约 4.2GB）
+
+推荐使用 API 方式，无需下载大型模型文件。
 """
 import os
 from pathlib import Path

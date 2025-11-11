@@ -103,25 +103,30 @@ langchain-text-splitters==0.3.8
 # https://github.com/chroma-core/chroma/blob/main/LICENSE
 langchain-chroma==0.2.4
 
-# HuggingFace嵌入模型支持 - MIT许可证 (当前版本: 0.2.0)
-# https://github.com/langchain-ai/langchain/blob/master/libs/partners/huggingface/LICENSE
-langchain-huggingface==0.2.0
+# HuggingFace嵌入模型支持（已弃用 - 会自动安装 torch 和 CUDA 依赖）
+# 注意：langchain-huggingface 依赖 sentence-transformers，会自动安装 torch（约800MB+）和 CUDA 库（约1GB+）
+# 现使用 CustomAPIEmbeddings，无需此依赖
+# 如需本地模型，请同时取消注释 requirements.txt 中的 torch、sentence-transformers 等依赖
+# # HuggingFace嵌入模型支持 - MIT许可证 (当前版本: 0.2.0)
+# # https://github.com/langchain-ai/langchain/blob/master/libs/partners/huggingface/LICENSE
+# langchain-huggingface==0.2.0
 
-# Cohere AI支持 - MIT许可证 (当前版本: 0.3.5)
-# https://github.com/langchain-ai/langchain/blob/master/libs/partners/cohere/LICENSE
-langchain-cohere==0.3.5
+# 未使用的 LLM 供应商（可选，如需要请取消注释）
+# Cohere AI 支持
+# # Cohere AI支持 - MIT许可证 (当前版本: 0.3.5)
+# # https://github.com/langchain-ai/langchain/blob/master/libs/partners/cohere/LICENSE
+# langchain-cohere==0.3.5
+# # Cohere API客户端 - MIT许可证 (当前版本: 5.15.0)
+# # https://github.com/cohere-ai/cohere-python/blob/main/LICENSE
+# cohere==5.15.0
 
-# Cohere API客户端 - MIT许可证 (当前版本: 5.15.0)
-# https://github.com/cohere-ai/cohere-python/blob/main/LICENSE
-cohere==5.15.0
-
-# Fireworks AI支持 - MIT许可证 (当前版本: 0.2.7)
-# https://github.com/langchain-ai/langchain/blob/master/libs/partners/fireworks/LICENSE
-langchain-fireworks==0.2.7
-
-# Fireworks AI客户端 - Apache 2.0许可证 (当前版本: 0.15.12)
-# https://github.com/fireworks-ai/fireworks-ai-python/blob/main/LICENSE
-fireworks-ai==0.15.12
+# Fireworks AI 支持
+# # Fireworks AI支持 - MIT许可证 (当前版本: 0.2.7)
+# # https://github.com/langchain-ai/langchain/blob/master/libs/partners/fireworks/LICENSE
+# langchain-fireworks==0.2.7
+# # Fireworks AI客户端 - Apache 2.0许可证 (当前版本: 0.15.12)
+# # https://github.com/fireworks-ai/fireworks-ai-python/blob/main/LICENSE
+# fireworks-ai==0.15.12
 
 # Google Gemini支持 - MIT许可证 (当前版本: 2.0.8)
 # https://github.com/langchain-ai/langchain/blob/master/libs/partners/google-genai/LICENSE
@@ -147,9 +152,10 @@ google-auth==2.38.0
 # https://github.com/google/generative-ai-python/blob/main/LICENSE
 google-generativeai==0.8.4
 
-# Mistral AI支持 - MIT许可证 (当前版本: 0.2.4)
-# https://github.com/langchain-ai/langchain/blob/master/libs/partners/mistralai/LICENSE
-langchain-mistralai==0.2.4
+# Mistral AI 支持（未使用，如需要请取消注释）
+# # Mistral AI支持 - MIT许可证 (当前版本: 0.2.4)
+# # https://github.com/langchain-ai/langchain/blob/master/libs/partners/mistralai/LICENSE
+# langchain-mistralai==0.2.4
 
 # Ollama本地模型支持 - MIT许可证 (当前版本: 0.2.2)
 # https://github.com/langchain-ai/langchain/blob/master/libs/partners/ollama/LICENSE
@@ -188,28 +194,29 @@ markdown==3.9
 # https://github.com/Unstructured-IO/unstructured/blob/main/LICENSE.md
 unstructured==0.17.2
 
-# HuggingFace模型依赖（可选）
-# 句子嵌入模型 - Apache 2.0许可证 (当前版本: 4.1.0)
-# https://github.com/UKPLab/sentence-transformers/blob/master/LICENSE
-sentence-transformers==4.1.0  # ~90MB模型，需要网络下载
+# HuggingFace模型依赖（已弃用 - 现使用CustomAPIEmbeddings通过API调用嵌入模型）
+# 如需使用本地嵌入模型，请取消注释以下依赖包：
+# 注意：以下依赖包总计约1GB+，会显著增加镜像体积和安装时间
+# 
+# # 句子嵌入模型 - Apache 2.0许可证 (当前版本: 4.1.0)
+# # https://github.com/UKPLab/sentence-transformers/blob/master/LICENSE
+# sentence-transformers==4.1.0  # ~90MB模型，需要网络下载
+# 
+# # PyTorch深度学习框架 - BSD许可证 (当前版本: 2.7.1)
+# # https://github.com/pytorch/pytorch/blob/main/LICENSE
+# torch==2.7.1  # 修复CVE-2025-32434安全漏洞，约800MB+
+# 
+# # HuggingFace transformers库 - Apache 2.0许可证 (当前版本: 4.52.4)
+# # https://github.com/huggingface/transformers/blob/main/LICENSE
+# transformers==4.52.4
+# 
+# # HuggingFace模型中心 - Apache 2.0许可证 (当前版本: 0.32.4)
+# # https://github.com/huggingface/huggingface_hub/blob/main/LICENSE
+# huggingface-hub==0.32.4  # HuggingFace模型下载
 
-# PyTorch深度学习框架 - BSD许可证 (当前版本: 2.7.1)
-# https://github.com/pytorch/pytorch/blob/main/LICENSE
-torch==2.7.1  # 修复CVE-2025-32434安全漏洞
-
-# HuggingFace transformers库 - Apache 2.0许可证 (当前版本: 4.52.4)
-# https://github.com/huggingface/transformers/blob/main/LICENSE
-transformers==4.52.4
-
-# HuggingFace模型中心 - Apache 2.0许可证 (当前版本: 0.32.4)
-# https://github.com/huggingface/huggingface_hub/blob/main/LICENSE
 # 语言检测库 - Apache 2.0许可证 (当前版本: 1.0.9)
 # https://github.com/Mimino666/langdetect/blob/master/LICENSE
 langdetect==1.0.9
-
-# HuggingFace模型中心 - Apache 2.0许可证 (当前版本: 0.32.4)
-# https://github.com/huggingface/huggingface_hub/blob/main/LICENSE
-huggingface-hub==0.32.4  # HuggingFace模型下载
 
 # Celery异步任务队列 - BSD许可证 (当前版本: 5.4.0)
 # https://github.com/celery/celery/blob/main/LICENSE

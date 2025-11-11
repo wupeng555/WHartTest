@@ -219,28 +219,28 @@ class KnowledgeBaseViewSet(BaseModelViewSet):
 
             # 检查依赖库
             try:
-                import langchain_huggingface
-                status_info['dependencies']['langchain_huggingface'] = True
-            except ImportError:
-                pass
-
-            try:
                 import langchain_chroma
                 status_info['dependencies']['langchain_chroma'] = True
             except ImportError:
                 pass
 
-            try:
-                import sentence_transformers
-                status_info['dependencies']['sentence_transformers'] = True
-            except ImportError:
-                pass
-
-            try:
-                import torch
-                status_info['dependencies']['torch'] = True
-            except ImportError:
-                pass
+            # 以下依赖已弃用（现使用CustomAPIEmbeddings通过API调用嵌入模型）
+            # try:
+            #     import langchain_huggingface
+            #     status_info['dependencies']['langchain_huggingface'] = True
+            # except ImportError:
+            #     pass
+            # try:
+            #     import sentence_transformers
+            #     status_info['dependencies']['sentence_transformers'] = True
+            # except ImportError:
+            #     pass
+            #
+            # try:
+            #     import torch
+            #     status_info['dependencies']['torch'] = True
+            # except ImportError:
+            #     pass
 
             # 检查BGE-M3模型
             cache_dir = Path('.cache/huggingface')
@@ -250,32 +250,37 @@ class KnowledgeBaseViewSet(BaseModelViewSet):
             status_info['embedding_model']['cache_path'] = str(model_path)
             status_info['embedding_model']['model_exists'] = model_path.exists()
 
-            if model_path.exists():
-                status_info['embedding_model']['status'] = 'available'
-
-                # 尝试加载测试
-                try:
-                    from langchain_huggingface import HuggingFaceEmbeddings
-
-                    embeddings = HuggingFaceEmbeddings(
-                        model_name="BAAI/bge-m3",
-                        cache_folder=str(cache_dir),
-                        model_kwargs={'device': 'cpu'},
-                        encode_kwargs={'normalize_embeddings': True}
-                    )
-
-                    # 简单测试
-                    test_vector = embeddings.embed_query("测试")
-                    if len(test_vector) > 0:
-                        status_info['embedding_model']['load_test'] = True
-                        status_info['embedding_model']['status'] = 'working'
-                        status_info['embedding_model']['dimension'] = len(test_vector)
-
-                except Exception as e:
-                    status_info['embedding_model']['status'] = 'error'
-                    status_info['embedding_model']['error'] = str(e)
-            else:
-                status_info['embedding_model']['status'] = 'missing'
+            # 本地模型检查已弃用（现使用CustomAPIEmbeddings）
+            # if model_path.exists():
+            #     status_info['embedding_model']['status'] = 'available'
+            #
+            #     # 尝试加载测试
+            #     try:
+            #         from langchain_huggingface import HuggingFaceEmbeddings
+            #
+            #         embeddings = HuggingFaceEmbeddings(
+            #             model_name="BAAI/bge-m3",
+            #             cache_folder=str(cache_dir),
+            #             model_kwargs={'device': 'cpu'},
+            #             encode_kwargs={'normalize_embeddings': True}
+            #         )
+            #
+            #         # 简单测试
+            #         test_vector = embeddings.embed_query("测试")
+            #         if len(test_vector) > 0:
+            #             status_info['embedding_model']['load_test'] = True
+            #             status_info['embedding_model']['status'] = 'working'
+            #             status_info['embedding_model']['dimension'] = len(test_vector)
+            #
+            #     except Exception as e:
+            #         status_info['embedding_model']['status'] = 'error'
+            #         status_info['embedding_model']['error'] = str(e)
+            # else:
+            #     status_info['embedding_model']['status'] = 'missing'
+            
+            # 现使用CustomAPIEmbeddings，不检查本地模型
+            status_info['embedding_model']['status'] = 'api_based'
+            status_info['embedding_model']['note'] = '使用CustomAPIEmbeddings通过API调用嵌入模型'
 
             # 检查知识库统计
             total_kb = KnowledgeBase.objects.count()

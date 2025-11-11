@@ -98,11 +98,12 @@ langchain-mcp-adapters
 # 知识库相关
 langchain-text-splitters
 langchain-chroma # ChromaDB向量数据库集成
-langchain-huggingface # HuggingFace嵌入模型支持
-sentence-transformers # HuggingFace句子转换模型
-torch # PyTorch (sentence-transformers依赖)
-transformers # HuggingFace Transformers库
-huggingface-hub # HuggingFace模型下载
+# 注意：现使用CustomAPIEmbeddings通过API调用嵌入模型，无需以下本地模型依赖
+# langchain-huggingface # HuggingFace嵌入模型支持 (已弃用)
+# sentence-transformers # HuggingFace句子转换模型 (已弃用，约1GB+)
+# torch # PyTorch (已弃用，约800MB+)
+# transformers # HuggingFace Transformers库 (已弃用)
+# huggingface-hub # HuggingFace模型下载 (已弃用)
 
 # 文档处理
 pypdf

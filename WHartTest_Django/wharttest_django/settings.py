@@ -381,6 +381,9 @@ LOGGING = {
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
+# Celery 6.0+ 启动时重试连接
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
 # Celery时区设置
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True

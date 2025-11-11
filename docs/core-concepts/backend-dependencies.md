@@ -146,10 +146,16 @@ WHartTest 后端基于 Django REST Framework 构建，采用 Python 生态的现
 - **beautifulsoup4** (4.13.3): HTML/XML 解析
 - **开源协议**: MIT License (除 beautifulsoup4 为 MIT License)
 
-### HuggingFace 模型依赖
-- **sentence-transformers** (4.1.0): 句子转换模型 (~90MB模型，需要网络下载)
-- **torch** (2.7.1): PyTorch 框架 (修复 CVE-2025-32434 安全漏洞)
+### HuggingFace 模型依赖（已弃用）
+
+⚠️ **注意**: 从当前版本开始，项目已改用 `CustomAPIEmbeddings` 通过 API 调用嵌入模型，无需安装以下大型依赖包。
+
+如需使用本地嵌入模型（不推荐），需要安装以下依赖（总计约 1GB+）：
+- **sentence-transformers** (4.1.0): 句子转换模型 (~90MB模型文件)
+- **torch** (2.7.1): PyTorch 框架 (~800MB+)
 - **transformers** (4.52.4): HuggingFace transformers 库
 - **huggingface-hub** (0.32.4): HuggingFace 模型下载
 - **开源协议**: Apache License 2.0
+
+**推荐方式**: 使用 API 嵌入服务（OpenAI、Azure、Ollama 等），无需下载大型模型文件。
 
