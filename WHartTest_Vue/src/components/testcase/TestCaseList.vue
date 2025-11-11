@@ -168,18 +168,27 @@ const paginationConfig = reactive({
 });
 
 // 复选框选择相关的计算属性和方法
+// 获取当前页实际显示的数据
+const getCurrentPageData = () => {
+  const startIndex = (paginationConfig.current - 1) * paginationConfig.pageSize;
+  const endIndex = startIndex + paginationConfig.pageSize;
+  return testCaseData.value.slice(startIndex, endIndex);
+};
+
 // 当前页是否全选
 const isCurrentPageAllSelected = computed(() => {
-  if (testCaseData.value.length === 0) return false;
-  return testCaseData.value.every(item => selectedTestCaseIds.value.includes(item.id));
+  const currentPageData = getCurrentPageData();
+  if (currentPageData.length === 0) return false;
+  return currentPageData.every(item => selectedTestCaseIds.value.includes(item.id));
 });
 
 // 当前页是否半选状态
 const isCurrentPageIndeterminate = computed(() => {
-  const currentPageSelectedCount = testCaseData.value.filter(item =>
+  const currentPageData = getCurrentPageData();
+  const currentPageSelectedCount = currentPageData.filter(item =>
     selectedTestCaseIds.value.includes(item.id)
   ).length;
-  return currentPageSelectedCount > 0 && currentPageSelectedCount < testCaseData.value.length;
+  return currentPageSelectedCount > 0 && currentPageSelectedCount < currentPageData.length;
 });
 
 // 处理单个复选框变化
@@ -198,9 +207,15 @@ const handleCheckboxChange = (id: number, checked: boolean) => {
 
 // 处理当前页全选/取消全选
 const handleSelectCurrentPage = (checked: boolean) => {
+  // 获取当前表格实际显示的数据
+  // Arco Table 会根据 pagination 配置自动切分数据显示
+  const startIndex = (paginationConfig.current - 1) * paginationConfig.pageSize;
+  const endIndex = startIndex + paginationConfig.pageSize;
+  const currentPageData = testCaseData.value.slice(startIndex, endIndex);
+  
   if (checked) {
     // 选中当前页所有项目
-    const currentPageIds = testCaseData.value.map(item => item.id);
+    const currentPageIds = currentPageData.map(item => item.id);
     currentPageIds.forEach(id => {
       if (!selectedTestCaseIds.value.includes(id)) {
         selectedTestCaseIds.value.push(id);
@@ -208,7 +223,7 @@ const handleSelectCurrentPage = (checked: boolean) => {
     });
   } else {
     // 取消选中当前页所有项目
-    const currentPageIds = testCaseData.value.map(item => item.id);
+    const currentPageIds = currentPageData.map(item => item.id);
     selectedTestCaseIds.value = selectedTestCaseIds.value.filter(id =>
       !currentPageIds.includes(id)
     );
@@ -381,7 +396,7 @@ const handleBatchDelete = () => {
         const response = await batchDeleteTestCases(currentProjectId.value!, selectedTestCaseIds.value);
         if (response.success && response.data) {
           // 显示详细的删除结果
-          const { deleted_count, deleted_testcases, deletion_details } = response.data;
+          const { deleted_count, deletion_details } = response.data;
 
           let detailMessage = `成功删除 ${deleted_count} 个测试用例`;
           if (deletion_details) {
