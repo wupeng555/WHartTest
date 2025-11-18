@@ -71,6 +71,16 @@
           <div class="text-xs text-gray-500">留空表示不修改 API Key。</div>
         </template>
       </a-form-item>
+      <a-form-item>
+        <a-button 
+          @click="testLlmModel"
+          :loading="testingModel"
+          type="outline"
+        >
+          <template #icon><icon-refresh /></template>
+          测试模型
+        </a-button>
+      </a-form-item>
       <a-form-item field="system_prompt" label="系统提示词">
         <a-textarea
           v-model="formData.system_prompt"
@@ -144,6 +154,7 @@ const providerOptions = ref<ProviderOption[]>([]);
 const loadingProviders = ref(false);
 const modelOptions = ref<string[]>([]);
 const loadingModels = ref(false);
+const testingModel = ref(false);
 const defaultFormData: CreateLlmConfigRequest = {
   config_name: '',
   provider: '',
@@ -335,6 +346,66 @@ const fetchAvailableModels = async () => {
     modelOptions.value = [];
   } finally {
     loadingModels.value = false;
+  }
+};
+
+// 测试 LLM 模型真实可用性
+const testLlmModel = async () => {
+  // 验证必要字段
+  if (!formData.value.api_url) {
+    Message.warning('请先填写 API URL');
+    return;
+  }
+  if (!formData.value.api_key) {
+    Message.warning('请先填写 API Key');
+    return;
+  }
+  if (!formData.value.name) {
+    Message.warning('请先填写模型名称');
+    return;
+  }
+
+  testingModel.value = true;
+  try {
+    // 构造 chat completions API 端点
+    const apiUrl = formData.value.api_url.replace(/\/$/, '');
+    const chatEndpoint = `${apiUrl}/chat/completions`;
+
+    // 发送测试请求
+    const response = await axios.post(chatEndpoint, {
+      model: formData.value.name,
+      messages: [
+        { role: 'user', content: 'Hi, this is a test message.' }
+      ],
+      max_tokens: 10
+    }, {
+      headers: {
+        'Authorization': `Bearer ${formData.value.api_key}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 30000, // 30秒超时
+    });
+
+    // 验证返回数据包含有效响应
+    if (response.data && response.data.choices && response.data.choices.length > 0) {
+      const content = response.data.choices[0].message?.content;
+      if (content !== undefined) {
+        Message.success('模型测试成功！服务运行正常');
+      } else {
+        Message.warning('模型响应成功但数据格式异常');
+      }
+    } else {
+      Message.warning('模型响应成功但未返回有效数据');
+    }
+  } catch (error: any) {
+    console.error('模型测试失败:', error);
+    const errorMsg = error.response?.data?.error?.message 
+      || error.response?.statusText 
+      || error.message 
+      || '模型测试失败';
+    Message.error(`模型测试失败: ${errorMsg}`);
+  } finally {
+    testingModel.value = false;
   }
 };
 
