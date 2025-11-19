@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-WHartTest 是一个基于 Django REST Framework 构建的AI驱动测试自动化平台，核心功能是通过AI智能生成测试用例。平台集成了 LangChain、MCP（Model Context Protocol）工具调用、项目管理、需求评审、测试用例管理以及先进的知识库管理和文档理解功能。利用大语言模型和HuggingFace嵌入模型的能力，自动化生成高质量的测试用例，并结合知识库提供更精准的测试辅助，为测试团队提供一个完整的智能测试管理解决方案。
+WHartTest 是一个基于 Django REST Framework 构建的AI驱动测试自动化平台，核心功能是通过AI智能生成测试用例。平台集成了 LangChain、MCP（Model Context Protocol）工具调用、项目管理、需求评审、测试用例管理以及先进的知识库管理和文档理解功能。利用大语言模型和多种嵌入服务（OpenAI、Azure OpenAI、Ollama等）的能力，自动化生成高质量的测试用例，并结合知识库提供更精准的测试辅助，为测试团队提供一个完整的智能测试管理解决方案。
 
 
 ## 文档
@@ -10,23 +10,30 @@ WHartTest 是一个基于 Django REST Framework 构建的AI驱动测试自动化
 
 ## 快速开始
 
-### Docker 部署（推荐）
+### Docker 部署（推荐 - 开箱即用）
 
-#### 使用预构建镜像（无需本地构建）
 ```bash
 # 1. 克隆仓库
 git clone https://github.com/MGdaasLab/WHartTest.git
 cd WHartTest
 
-# 2. 配置环境变量
+# 2. 准备配置（使用默认配置，包含自动生成的API Key）
 cp .env.example .env
-# 编辑 .env 文件，设置必要的环境变量
 
-# 3. 启动服务（自动拉取预构建镜像）
+# 3. 一键启动（自动拉取预构建镜像）
 docker-compose up -d
+
+# 4. 访问系统
+# 前端：http://localhost:8913
+# 后台：http://localhost:8912/admin (admin/admin123456)
 ```
 
+**就这么简单！** 系统会自动创建默认API Key，MCP服务开箱即用。
+
+> ⚠️ **生产环境提示**：请登录后台删除默认API Key并创建新的安全密钥。详见 [快速启动指南](./docs/QUICK_START.md)
+
 详细的部署说明请参考：
+- [快速启动指南](./docs/QUICK_START.md) - **推荐新用户阅读**
 - [GitHub 自动构建部署指南](./docs/github-docker-deployment.md)
 - [完整部署文档](https://mgdaaslab.github.io/WHartTest/)
 

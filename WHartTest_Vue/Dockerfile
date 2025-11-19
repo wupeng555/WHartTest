@@ -10,11 +10,19 @@ COPY package*.json ./
 # 设置 npm 淘宝镜像源
 RUN npm config set registry https://registry.npmmirror.com
 
-# 安装依赖
-RUN npm ci --only=production=false
+# 安装依赖（npm ci更快更可靠，基于lock文件）
+RUN npm ci
+
+# 复制TypeScript配置和构建配置
+COPY tsconfig*.json ./
+COPY vite.config.ts ./
+COPY postcss.config.js ./
+COPY tailwind.config.js ./
 
 # 复制源代码
-COPY . .
+COPY src/ ./src/
+COPY public/ ./public/
+COPY index.html ./
 
 # 复制生产环境配置
 COPY .env.production .env.production

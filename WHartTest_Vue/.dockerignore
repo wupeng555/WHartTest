@@ -1,46 +1,78 @@
-# Dependencies
+# 依赖和缓存
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.npm/
+.yarn/
+.pnpm/
+# 保留package-lock.json用于npm ci
+# package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# Production
+# 构建产物
 dist/
 dist-ssr/
+build/
+.next/
+out/
 
-# IDE
+# IDE和编辑器
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+*.sublime-project
+*.sublime-workspace
 
 # Git
 .git/
 .gitignore
 .gitattributes
+.github/
 
-# Environment
+# 环境变量（保留.env.production用于构建）
 .env
 .env.local
 .env.*.local
+.env.development
 
-# Tests
+# 测试
 coverage/
 .nyc_output/
+test/
+tests/
+**/__tests__/
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+.jest/
+jest.config.*
 
-# Documentation
+# 文档
 README.md
 docs/
 *.md
+LICENSE
+BATCH_EXECUTION_TEST.md
 
-# Docker
+# Docker相关
 Dockerfile
+Dockerfile.*
 .dockerignore
 docker-compose*.yml
 
-# Logs
+# 其他临时文件
 logs/
 *.log
+*.tmp
+*.bak
+Thumbs.db
+.cache/
+.temp/
+.parcel-cache/

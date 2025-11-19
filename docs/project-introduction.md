@@ -17,7 +17,7 @@
 
 ## 技术栈
 - 后端：Django, Django REST Framework
-- AI：大语言模型（LLM）、LangChain、HuggingFace 嵌入
+- AI：大语言模型（LLM）、LangChain、多种嵌入服务（OpenAI、Azure OpenAI、Ollama等）
 - 存储：示例使用 SQLite，可切换为 PostgreSQL / MySQL
 - 前端：Vue + Vite（详见 `WHartTest_Vue`）
 

@@ -22,17 +22,28 @@ pip install -r requirements.txt
 
 ### 2. 配置说明
 
+#### WHartTest Tools (WHartTest_tools.py) ✨ 开箱即用
+
+- **服务端口**: 8006
+- **后端地址**: `WHARTTEST_BACKEND_URL`（默认：http://backend:8000）
+- **API密钥**: `WHARTTEST_API_KEY`（默认：wharttest-default-mcp-key-2025）
+
+**🎉 零配置启动：**
+```bash
+cp .env.example .env  # 已包含默认API Key
+docker-compose up -d   # 直接启动，无需手动配置
+```
+
+**⚠️ 生产环境安全提示：**
+- 系统会自动创建默认API Key（wharttest-default-mcp-key-2025）
+- 开发环境可直接使用
+- 生产环境请登录后台删除默认Key并创建新的安全密钥
+
 #### MS测试用例工具 (ms_mcp_api.py)
 
 - **服务端口**: 8007
-- **API地址**: http://msxxxxxxxxx.com
-- **认证信息**: 已内置在代码中
-
-#### 测试用例工具 (testauto_tools.py)
-
-- **服务端口**: 8006
-- **API地址**: http://127.0.0.1:8000
-- **API密钥**: 已内置在代码中
+- **API地址**: 通过环境变量 `MS_API_HOST` 配置
+- **认证信息**: 通过环境变量 `MS_ACCESS_KEY` 和 `MS_SECRET_KEY` 配置
 
 ### 3. 启动服务
 

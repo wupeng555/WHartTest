@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-WhartTest 是一个基于 Django REST Framework 构建的AI驱动测试自动化平台，核心功能是通过AI智能生成测试用例。平台集成了 LangChain、MCP（Model Context Protocol）工具调用、项目管理、测试用例管理以及先进的知识库管理和文档理解功能。利用大语言模型和HuggingFace嵌入模型的能力，自动化生成高质量的测试用例，并结合知识库提供更精准的测试辅助，为测试团队提供一个完整的智能测试管理解决方案。
+WhartTest 是一个基于 Django REST Framework 构建的AI驱动测试自动化平台，核心功能是通过AI智能生成测试用例。平台集成了 LangChain、MCP（Model Context Protocol）工具调用、项目管理、测试用例管理以及先进的知识库管理和文档理解功能。利用大语言模型和多种嵌入服务（OpenAI、Azure OpenAI、Ollama等）的能力，自动化生成高质量的测试用例，并结合知识库提供更精准的测试辅助，为测试团队提供一个完整的智能测试管理解决方案。
 
 ## 核心特性
 
@@ -634,7 +634,7 @@ sudo ufw enable
 - Django (BSD-3-Clause)
 - Django REST Framework (MIT)
 - LangChain系列 (MIT)
-- HuggingFace Transformers (Apache-2.0)
+- OpenAI SDK (MIT)
 - 其他依赖库详见 [requirements.txt](requirements.txt)
 
 所有依赖库均为宽松开源协议，与MIT协议完全兼容。

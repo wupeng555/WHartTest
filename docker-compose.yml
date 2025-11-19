@@ -99,7 +99,8 @@ services:
     environment:
       # WHartTest Tools 配置
       - WHARTTEST_BACKEND_URL=${WHARTTEST_BACKEND_URL:-http://backend:8000}
-      - WHARTTEST_API_KEY=${WHARTTEST_API_KEY:-}
+      # 使用系统自动生成的默认API Key，生产环境请在.env中覆盖
+      - WHARTTEST_API_KEY=${WHARTTEST_API_KEY:-wharttest-default-mcp-key-2025}
       # MS MCP API 配置（可选）
       - MS_API_HOST=${MS_API_HOST:-http://ms.example.com}
       - MS_ACCESS_KEY=${MS_ACCESS_KEY:-your_16byte_key1}
