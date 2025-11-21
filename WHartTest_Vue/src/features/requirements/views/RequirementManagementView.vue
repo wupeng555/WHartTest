@@ -225,13 +225,39 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 评审配置模态框 -->
+    <a-modal
+      v-model:visible="reviewConfigVisible"
+      :title="reviewAction === 'restart' ? '重新评审配置' : '评审配置'"
+      @ok="confirmReview"
+      @cancel="reviewConfigVisible = false"
+    >
+      <a-alert v-if="reviewAction === 'restart'" type="warning" style="margin-bottom: 16px">
+        重新评审将创建新的评审报告，原有报告将保留。
+      </a-alert>
+      
+      <a-form :model="reviewConfig" layout="vertical">
+        <a-form-item label="并发分析数量" field="max_workers">
+          <a-select v-model="reviewConfig.max_workers" placeholder="请选择并发数量">
+            <a-option :value="1">1 (串行分析 - 最慢但最稳定)</a-option>
+            <a-option :value="2">2 (低并发 - 适合低配环境)</a-option>
+            <a-option :value="3">3 (推荐 - 平衡速度与稳定性)</a-option>
+            <a-option :value="5">5 (高并发 - 速度最快)</a-option>
+          </a-select>
+          <template #help>
+            并发数量决定了同时进行的专项分析任务数。如果遇到API限流错误，请尝试降低并发数。
+          </template>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message } from '@arco-design/web-vue';
 import { IconPlus, IconUpload, IconFile, IconDelete } from '@arco-design/web-vue/es/icon';
 import { useProjectStore } from '@/store/projectStore';
 import { RequirementDocumentService } from '../services/requirementService';
@@ -282,6 +308,14 @@ const uploadForm = reactive<CreateDocumentRequest & { uploadType: 'file' | 'cont
   uploadType: 'file',
   file: undefined,
   content: ''
+});
+
+// 评审配置相关
+const reviewConfigVisible = ref(false);
+const reviewAction = ref<'start' | 'restart' | 'retry'>('start');
+const currentDocument = ref<RequirementDocument | null>(null);
+const reviewConfig = ref({
+  max_workers: 3
 });
 
 // 表单验证规则
@@ -616,104 +650,64 @@ const viewDocument = (document: RequirementDocument) => {
 
 // 移除了startModuleSplit方法，现在统一在详情页面进行拆分配置
 
-const startReview = async (document: RequirementDocument) => {
-  try {
-    loading.value = true;
-
-    const response = await RequirementDocumentService.startReview(document.id, {
-      analysis_type: 'comprehensive',
-      parallel_processing: true
-    });
-
-    if (response.status === 'success') {
-      Message.success('需求评审已开始');
-      loadDocuments();
-    } else {
-      Message.error(response.message || '需求评审启动失败');
-    }
-  } catch (error) {
-    console.error('需求评审启动失败:', error);
-    Message.error('需求评审启动失败');
-  } finally {
-    loading.value = false;
-  }
+// 开始评审 - 打开配置对话框
+const startReview = (document: RequirementDocument) => {
+  currentDocument.value = document;
+  reviewAction.value = 'start';
+  reviewConfigVisible.value = true;
 };
 
-// 重新评审
-const restartReview = async (document: RequirementDocument) => {
-  try {
-    // 确认重新评审
-    const confirmed = await new Promise((resolve) => {
-      Modal.confirm({
-        title: '确认重新评审',
-        content: `重新评审文档"${document.title}"将创建新的评审报告，原有报告将保留。是否继续？`,
-        okText: '确认',
-        cancelText: '取消',
-        onOk: () => resolve(true),
-        onCancel: () => resolve(false),
-      });
-    });
-
-    if (!confirmed) return;
-
-    loading.value = true;
-
-    const response = await RequirementDocumentService.restartReview(document.id, {
-      analysis_type: 'comprehensive',
-      parallel_processing: true
-    });
-
-    if (response.status === 'success') {
-      Message.success('重新评审已开始');
-      loadDocuments();
-    } else {
-      Message.error(response.message || '重新评审启动失败');
-    }
-  } catch (error) {
-    console.error('重新评审启动失败:', error);
-    Message.error('重新评审启动失败');
-  } finally {
-    loading.value = false;
-  }
+// 重新评审 - 打开配置对话框
+const restartReview = (document: RequirementDocument) => {
+  currentDocument.value = document;
+  reviewAction.value = 'restart';
+  reviewConfigVisible.value = true;
 };
 
-// 失败后重试评审
-const retryReview = async (document: RequirementDocument) => {
+// 失败后重试评审 - 打开配置对话框
+const retryReview = (document: RequirementDocument) => {
+  currentDocument.value = document;
+  reviewAction.value = 'retry';
+  reviewConfigVisible.value = true;
+};
+
+// 确认评审
+const confirmReview = async () => {
+  if (!currentDocument.value) return;
+  
+  reviewConfigVisible.value = false;
+  loading.value = true;
+  
+  const options = {
+    analysis_type: 'comprehensive' as const,
+    parallel_processing: true,
+    max_workers: reviewConfig.value.max_workers
+  };
+
   try {
-    // 确认重试
-    const confirmed = await new Promise((resolve) => {
-      Modal.confirm({
-        title: '确认重试评审',
-        content: `系统将重新尝试对文档"${document.title}"进行评审处理。是否继续？`,
-        okText: '确认',
-        cancelText: '取消',
-        onOk: () => resolve(true),
-        onCancel: () => resolve(false),
-      });
-    });
-
-    if (!confirmed) return;
-
-    loading.value = true;
-
-    // 对于失败的文档，直接尝试重新开始评审流程
-    // 如果文档没有模块信息，后端会自动处理模块拆分
-    const response = await RequirementDocumentService.startReview(document.id, {
-      analysis_type: 'comprehensive',
-      parallel_processing: true
-    });
+    let response;
+    const documentId = currentDocument.value.id;
+    
+    if (reviewAction.value === 'restart') {
+      response = await RequirementDocumentService.restartReview(documentId, options);
+    } else {
+      // start 和 retry 都调用 startReview
+      response = await RequirementDocumentService.startReview(documentId, options);
+    }
 
     if (response.status === 'success') {
-      Message.success('重试评审已开始');
+      const actionText = reviewAction.value === 'restart' ? '重新评审' : '需求评审';
+      Message.success(`${actionText}已启动 (并发数: ${reviewConfig.value.max_workers})`);
       loadDocuments();
     } else {
-      Message.error(response.message || '重试评审启动失败');
+      Message.error(response.message || '评审启动失败');
     }
   } catch (error) {
-    console.error('重试评审启动失败:', error);
-    Message.error('重试评审启动失败');
+    console.error('评审启动失败:', error);
+    Message.error('评审启动失败');
   } finally {
     loading.value = false;
+    currentDocument.value = null;
   }
 };
 

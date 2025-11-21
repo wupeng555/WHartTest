@@ -468,6 +468,7 @@ class RequirementDocumentViewSet(BaseModelViewSet):
                 'parallel_processing': request.data.get('parallel_processing', True),
                 'priority_modules': request.data.get('priority_modules', []),
                 'custom_requirements': request.data.get('custom_requirements', ''),
+                'max_workers': request.data.get('max_workers', 3),  # 新增：并发数
                 'direct_review': direct_review
             }
 

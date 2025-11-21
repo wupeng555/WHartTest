@@ -17,7 +17,7 @@ export interface PaginatedResponse<T> {
 }
 
 // 文档状态枚举
-export type DocumentStatus = 
+export type DocumentStatus =
   | 'uploaded'           // 已上传
   | 'processing'         // 处理中
   | 'module_split'       // 模块拆分中
@@ -191,13 +191,14 @@ export interface StartReviewRequest {
   priority_modules?: string[];
   custom_requirements?: string;
   direct_review?: boolean; // 新增直接评审参数
+  max_workers?: number; // 新增并发数参数
   // 新增提示词相关参数
   prompt_ids?: {
-    requirement_structure?: number;
-    requirement_direct?: number;
-    requirement_global?: number;
-    requirement_module?: number;
-    requirement_consistency?: number;
+    completeness_analysis?: number;
+    consistency_analysis?: number;
+    testability_analysis?: number;
+    feasibility_analysis?: number;
+    clarity_analysis?: number;
   };
 }
 

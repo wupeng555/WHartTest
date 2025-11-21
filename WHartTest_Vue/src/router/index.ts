@@ -15,10 +15,10 @@ import LlmConfigManagementView from '@/features/langgraph/views/LlmConfigManagem
 import LangGraphChatView from '@/features/langgraph/views/LangGraphChatView.vue'; // 导入 LLM 聊天视图
 import KnowledgeManagementView from '@/features/knowledge/views/KnowledgeManagementView.vue'; // 导入知识库管理视图
 import ApiKeyManagementView from '@/views/ApiKeyManagementView.vue'; // 导入 API Key 管理视图
-import RemoteMcpConfigManagementView from '@/views/RemoteMcpConfigManagementView.vue'; // 导入远程MCP配置管理视图
+import RemoteMcpConfigManagementView from '@/views/RemoteMcpConfigManagementView.vue'; // 导入远程 MCP配置管理视图
 import RequirementManagementView from '@/features/requirements/views/RequirementManagementView.vue'; // 导入需求管理视图
 import DocumentDetailView from '@/features/requirements/views/DocumentDetailView.vue'; // 导入文档详情视图
-import ReportDetailView from '@/features/requirements/views/ReportDetailView.vue'; // 导入报告详情视图
+import SpecializedReportView from '@/features/requirements/views/SpecializedReportView.vue'; // 导入专项分析报告视图
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -113,9 +113,9 @@ const routes: Array<RouteRecordRaw> = [
         component: DocumentDetailView,
       },
       {
-        path: 'requirements/:id/report', // 评审报告详情
+        path: 'requirements/:id/report', // 评审报告（支持历史版本切换）
         name: 'ReportDetail',
-        component: ReportDetailView,
+        component: SpecializedReportView,
       },
       // 其他受保护的子路由可以加在这里
     ]

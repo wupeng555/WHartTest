@@ -454,11 +454,15 @@ export async function getPromptByType(type: string): Promise<ApiResponse<UserPro
 
 /**
  * 初始化用户提示词
+ * @param forceUpdate 是否强制更新已存在的提示词
  */
-export async function initializeUserPrompts(): Promise<ApiResponse<any>> {
+export async function initializeUserPrompts(forceUpdate: boolean = false): Promise<ApiResponse<any>> {
   const response = await request<any>({
     url: `${API_BASE_URL}/initialize/`,
-    method: 'POST'
+    method: 'POST',
+    data: {
+      force_update: forceUpdate
+    }
   });
 
   if (response.success) {

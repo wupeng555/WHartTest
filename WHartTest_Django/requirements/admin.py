@@ -68,6 +68,10 @@ class ReviewReportAdmin(admin.ModelAdmin):
         ('评审结果', {
             'fields': ('overall_rating', 'completion_score')
         }),
+        ('专项评分', {
+            'fields': ('completeness_score', 'consistency_score', 'clarity_score', 
+                      'testability_score', 'feasibility_score')
+        }),
         ('问题统计', {
             'fields': ('total_issues', 'high_priority_issues', 'medium_priority_issues', 'low_priority_issues')
         }),

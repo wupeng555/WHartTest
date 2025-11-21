@@ -18,30 +18,33 @@ import type { ApiResponse } from '@/features/langgraph/types/api';
  * 需求评审提示词类型映射
  */
 export const REQUIREMENT_PROMPT_TYPES = {
-  STRUCTURE: 'document_structure' as PromptType,
-  DIRECT: 'direct_analysis' as PromptType,
-  GLOBAL: 'global_analysis' as PromptType,
-  MODULE: 'module_analysis' as PromptType
+  COMPLETENESS: 'completeness_analysis' as PromptType,
+  CONSISTENCY: 'consistency_analysis' as PromptType,
+  TESTABILITY: 'testability_analysis' as PromptType,
+  FEASIBILITY: 'feasibility_analysis' as PromptType,
+  CLARITY: 'clarity_analysis' as PromptType
 };
 
 /**
  * 需求评审提示词类型显示名称
  */
 export const REQUIREMENT_PROMPT_TYPE_NAMES = {
-  [REQUIREMENT_PROMPT_TYPES.STRUCTURE]: '文档结构分析',
-  [REQUIREMENT_PROMPT_TYPES.DIRECT]: '直接分析',
-  [REQUIREMENT_PROMPT_TYPES.GLOBAL]: '全局分析',
-  [REQUIREMENT_PROMPT_TYPES.MODULE]: '模块分析'
+  [REQUIREMENT_PROMPT_TYPES.COMPLETENESS]: '完整性分析',
+  [REQUIREMENT_PROMPT_TYPES.CONSISTENCY]: '一致性分析',
+  [REQUIREMENT_PROMPT_TYPES.TESTABILITY]: '可测性分析',
+  [REQUIREMENT_PROMPT_TYPES.FEASIBILITY]: '可行性分析',
+  [REQUIREMENT_PROMPT_TYPES.CLARITY]: '清晰度分析'
 };
 
 /**
  * 需求评审提示词ID集合
  */
 export interface RequirementPromptIds {
-  document_structure?: number;
-  direct_analysis?: number;
-  global_analysis?: number;
-  module_analysis?: number;
+  completeness_analysis?: number;
+  consistency_analysis?: number;
+  testability_analysis?: number;
+  feasibility_analysis?: number;
+  clarity_analysis?: number;
 }
 
 /**

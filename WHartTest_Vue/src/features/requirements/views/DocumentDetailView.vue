@@ -53,7 +53,7 @@
             @click="viewReport"
           >
             <template #icon><icon-file /></template>
-            查看详细报告
+            查看报告
           </a-button>
           <a-button
             type="outline"
@@ -163,125 +163,6 @@
       </a-card>
     </div>
 
-    <!-- 评审报告区域 -->
-    <div v-if="document?.status === 'review_completed' && document?.latest_review" class="review-report-section">
-      <a-card title="📊 评审报告" class="review-report-card">
-        <div class="report-overview">
-          <div class="report-header">
-            <div class="report-meta">
-              <h2>{{ document.latest_review.document_title }}</h2>
-              <div class="report-info">
-                <a-tag :color="getRatingColor(document.latest_review.overall_rating)">
-                  {{ document.latest_review.overall_rating_display }}
-                </a-tag>
-                <span class="report-date">{{ formatDateTime(document.latest_review.review_date) }}</span>
-              </div>
-            </div>
-            <div class="report-score">
-              <div class="score-circle">
-                <span class="score-number">{{ document.latest_review.completion_score }}</span>
-                <span class="score-label">分</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 问题统计 -->
-          <div class="issues-stats">
-            <div
-              class="stat-item high"
-              :class="{ active: selectedPriority === 'high' }"
-              @click="handlePrioritySelect('high')"
-            >
-              <span class="stat-number">{{ document.latest_review.high_priority_issues }}</span>
-              <span class="stat-label">高优先级</span>
-            </div>
-            <div
-              class="stat-item medium"
-              :class="{ active: selectedPriority === 'medium' }"
-              @click="handlePrioritySelect('medium')"
-            >
-              <span class="stat-number">{{ document.latest_review.medium_priority_issues }}</span>
-              <span class="stat-label">中优先级</span>
-            </div>
-            <div
-              class="stat-item low"
-              :class="{ active: selectedPriority === 'low' }"
-              @click="handlePrioritySelect('low')"
-            >
-              <span class="stat-number">{{ document.latest_review.low_priority_issues }}</span>
-              <span class="stat-label">低优先级</span>
-            </div>
-            <div
-              class="stat-item total"
-              :class="{ active: selectedPriority === 'all' }"
-              @click="handlePrioritySelect('all')"
-            >
-              <span class="stat-number">{{ document.latest_review.total_issues }}</span>
-              <span class="stat-label">总问题</span>
-            </div>
-          </div>
-
-          <!-- 动态内容区域 -->
-          <div v-if="selectedPriority === 'all'" class="report-overview">
-            <!-- 评审摘要 -->
-            <div class="report-summary">
-              <h4>📝 评审摘要</h4>
-              <p>{{ document.latest_review.summary }}</p>
-            </div>
-
-            <!-- 改进建议 -->
-            <div class="report-recommendations">
-              <h4>💡 改进建议</h4>
-              <div class="recommendations-content">
-                {{ document.latest_review.recommendations }}
-              </div>
-            </div>
-          </div>
-
-          <!-- 筛选后的问题列表 -->
-          <div v-else class="filtered-issues">
-            <h4>
-              {{ selectedPriority === 'high' ? '🔴 高优先级问题' :
-                 selectedPriority === 'medium' ? '🟡 中优先级问题' :
-                 '🟢 低优先级问题' }}
-              ({{ filteredIssues.length }}个)
-            </h4>
-
-            <div v-if="filteredIssues.length === 0" class="no-issues">
-              <a-empty description="暂无此优先级的问题" />
-            </div>
-
-            <div v-else class="issues-list">
-              <div
-                v-for="issue in filteredIssues"
-                :key="issue.id"
-                class="issue-item"
-              >
-                <div class="issue-header">
-                  <a-tag
-                    :color="issue.priority === 'high' ? 'red' :
-                           issue.priority === 'medium' ? 'orange' : 'green'"
-                    size="small"
-                  >
-                    {{ issue.priority_display }}
-                  </a-tag>
-                  <a-tag color="blue" size="small">
-                    {{ issue.issue_type_display }}
-                  </a-tag>
-                </div>
-                <div class="issue-content">
-                  <h5>{{ issue.title }}</h5>
-                  <p>{{ issue.description }}</p>
-                  <div v-if="issue.suggestion" class="issue-suggestion">
-                    <strong>建议：</strong>{{ issue.suggestion }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </a-card>
-    </div>
 
     <!-- 模块管理区域 -->
     <div v-if="document?.modules && document.modules.length > 0" class="modules-section">
@@ -500,6 +381,32 @@
       @cancel="showSplitModal = false"
       @update:visible="showSplitModal = $event"
     />
+
+    <!-- 评审配置模态框 -->
+    <a-modal
+      v-model:visible="reviewConfigVisible"
+      :title="reviewAction === 'restart' ? '重新评审配置' : '评审配置'"
+      @ok="confirmReview"
+      @cancel="reviewConfigVisible = false"
+    >
+      <a-alert v-if="reviewAction === 'restart'" type="warning" style="margin-bottom: 16px">
+        重新评审将创建新的评审报告，原有报告将保留。
+      </a-alert>
+      
+      <a-form :model="reviewConfig" layout="vertical">
+        <a-form-item label="并发分析数量" field="max_workers">
+          <a-select v-model="reviewConfig.max_workers" placeholder="请选择并发数量">
+            <a-option :value="1">1 (串行分析 - 最慢但最稳定)</a-option>
+            <a-option :value="2">2 (低并发 - 适合低配环境)</a-option>
+            <a-option :value="3">3 (推荐 - 平衡速度与稳定性)</a-option>
+            <a-option :value="5">5 (高并发 - 速度最快)</a-option>
+          </a-select>
+          <template #help>
+            并发数量决定了同时进行的专项分析任务数。如果遇到API限流错误，请尝试降低并发数。
+          </template>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -564,26 +471,17 @@ const hoveredModuleId = ref<string | null>(null);
 const titleEditVisible = ref(false);
 const currentEditingTitleModule = ref<DocumentModule | null>(null);
 
-// 优先级筛选相关
-const selectedPriority = ref<'all' | 'high' | 'medium' | 'low'>('all');
+// 评审配置相关
+const reviewConfigVisible = ref(false);
+const reviewAction = ref<'start' | 'restart' | 'retry'>('start');
+const reviewConfig = ref({
+  max_workers: 3
+});
 
 // 计算属性
 const sortedModules = computed(() => {
   if (!document.value?.modules) return [];
   return [...document.value.modules].sort((a, b) => a.order - b.order);
-});
-
-// 筛选后的问题列表
-const filteredIssues = computed(() => {
-  if (!document.value?.latest_review?.issues) return [];
-
-  if (selectedPriority.value === 'all') {
-    return document.value.latest_review.issues;
-  }
-
-  return document.value.latest_review.issues.filter(issue =>
-    issue.priority === selectedPriority.value
-  );
 });
 
 // 方法
@@ -617,11 +515,6 @@ const formatDateTime = (dateTime?: string) => {
   return new Date(dateTime).toLocaleString();
 };
 
-// 优先级选择处理
-const handlePrioritySelect = (priority: 'all' | 'high' | 'medium' | 'low') => {
-  selectedPriority.value = priority;
-};
-
 // 获取当前工作流程步骤
 const getCurrentStep = (status: DocumentStatus) => {
   // 上传状态下引导执行拆分
@@ -641,28 +534,6 @@ const getCurrentStep = (status: DocumentStatus) => {
 
   return stepMap[status] || 0;
 };
-// 获取评级颜色
-const getRatingColor = (rating: string) => {
-  const colorMap: Record<string, string> = {
-    'excellent': 'green',
-    'good': 'blue',
-    'fair': 'orange',
-    'poor': 'red'
-  };
-
-  return colorMap[rating] || 'gray';
-};
-
-// 获取优先级颜色
-const getPriorityColor = (priority: string) => {
-  const colorMap: Record<string, string> = {
-    'high': 'red',
-    'medium': 'orange',
-    'low': 'blue'
-  };
-  return colorMap[priority] || 'gray';
-};
-
 // 加载文档详情
 const loadDocument = async () => {
   const documentId = route.params.id as string;
@@ -693,99 +564,33 @@ const goBack = () => {
   router.push('/requirements');
 };
 
-// 查看详细报告
+// 查看评审报告
 const viewReport = () => {
   if (document.value?.id) {
     router.push(`/requirements/${document.value.id}/report`);
   }
 };
 
-// 重新评审
+// 重新评审 - 打开配置对话框
 const restartReview = async () => {
   if (!document.value) return;
-
-  try {
-    // 确认重新评审
-    const confirmed = await new Promise((resolve) => {
-      Modal.confirm({
-        title: '确认重新评审',
-        content: '重新评审将创建新的评审报告，原有报告将保留。是否继续？',
-        okText: '确认',
-        cancelText: '取消',
-        onOk: () => resolve(true),
-        onCancel: () => resolve(false),
-      });
-    });
-
-    if (!confirmed) return;
-
-    reviewLoading.value = true;
-
-    const response = await RequirementDocumentService.restartReview(document.value.id, {
-      analysis_type: 'comprehensive',
-      parallel_processing: true
-    });
-
-    if (response.status === 'success') {
-      Message.success('重新评审已开始');
-      await loadDocument(); // 重新加载文档
-    } else {
-      Message.error(response.message || '重新评审启动失败');
-    }
-  } catch (error) {
-    console.error('重新评审启动失败:', error);
-    Message.error('重新评审启动失败');
-  } finally {
-    reviewLoading.value = false;
-  }
+  reviewAction.value = 'restart';
+  reviewConfigVisible.value = true;
 };
 
-// 失败后重试评审
+// 失败后重试评审 - 打开配置对话框
 const retryReview = async () => {
   if (!document.value) return;
-
-  try {
-    // 确认重试
-    const confirmed = await new Promise((resolve) => {
-      Modal.confirm({
-        title: '确认重试评审',
-        content: '系统将重新尝试对文档进行评审处理。是否继续？',
-        okText: '确认',
-        cancelText: '取消',
-        onOk: () => resolve(true),
-        onCancel: () => resolve(false),
-      });
-    });
-
-    if (!confirmed) return;
-
-    reviewLoading.value = true;
-
-    // 文档还没有拆分模块时提示用户先拆分
-    if (!document.value.modules || document.value.modules.length === 0) {
-      Message.warning('请先完成文档拆分生成模块');
-      handleShowSplitOptionsWithDefault('h2');
-      return;
-    }
-
-    // 如果已有模块，直接开始评审
-    const response = await RequirementDocumentService.startReview(document.value.id, {
-      analysis_type: 'comprehensive',
-      parallel_processing: true
-    });
-
-    if (response.status === 'success') {
-      Message.success('重试评审已开始');
-      await loadDocument(); // 重新加载文档
-    } else {
-      Message.error(response.message || '重试评审启动失败');
-    }
-  } catch (error) {
-    console.error('重试评审启动失败:', error);
-    Message.error('重试评审启动失败');
-  } finally {
-    reviewLoading.value = false;
+  
+  // 文档还没有拆分模块时提示用户先拆分
+  if (!document.value.modules || document.value.modules.length === 0) {
+    Message.warning('请先完成文档拆分生成模块');
+    handleShowSplitOptionsWithDefault('h2');
+    return;
   }
+  
+  reviewAction.value = 'retry';
+  reviewConfigVisible.value = true;
 };
 
 
@@ -838,28 +643,48 @@ const confirmModules = async () => {
 
 
 
-// 开始评审
-const startReview = async () => {
+// 开始评审 - 打开配置对话框
+const startReview = () => {
+  if (!document.value) return;
+  reviewAction.value = 'start';
+  reviewConfigVisible.value = true;
+};
+
+// 确认开始评审
+const confirmReview = async () => {
   if (!document.value) return;
 
+  reviewConfigVisible.value = false;
   reviewLoading.value = true;
+  
+  const options = {
+    analysis_type: 'comprehensive' as const,
+    parallel_processing: true,
+    max_workers: reviewConfig.value.max_workers
+  };
+
   try {
-    const response = await RequirementDocumentService.startReview(document.value.id, {
-      analysis_type: 'comprehensive',
-      parallel_processing: true
-    });
+    let response;
+    
+    if (reviewAction.value === 'restart') {
+      response = await RequirementDocumentService.restartReview(document.value.id, options);
+    } else {
+      // start 和 retry 都调用 startReview
+      response = await RequirementDocumentService.startReview(document.value.id, options);
+    }
 
     if (response.status === 'success') {
-      Message.success('需求评审已启动，正在后台处理...');
+      const actionText = reviewAction.value === 'restart' ? '重新评审' : '需求评审';
+      Message.success(`${actionText}已启动 (并发数: ${reviewConfig.value.max_workers})，正在后台处理...`);
       // 开始轮询文档状态
       pollDocumentStatus();
     } else {
-      Message.error(response.message || '需求评审启动失败');
+      Message.error(response.message || '评审启动失败');
       reviewLoading.value = false;
     }
   } catch (error) {
-    console.error('需求评审启动失败:', error);
-    Message.error('需求评审启动失败');
+    console.error('评审启动失败:', error);
+    Message.error('评审启动失败');
     reviewLoading.value = false;
   }
 };

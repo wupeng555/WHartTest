@@ -218,7 +218,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue';
-import { Message, type FormInstance } from '@arco-design/web-vue';
+import { Message, Modal, type FormInstance } from '@arco-design/web-vue';
 import { IconPlus, IconEdit, IconStar, IconDelete, IconCopy, IconInfoCircle, IconSettings } from '@arco-design/web-vue/es/icon';
 import {
   getUserPrompts,
@@ -409,20 +409,41 @@ const handleInitializePrompts = async () => {
 
     const statusData = statusResponse.data;
     const missingCount = statusData.summary?.missing_count || 0;
+    const existingCount = statusData.summary?.existing_count || 0;
     
-    if (missingCount === 0) {
-      Message.info('所有提示词类型已存在，无需初始化');
-      return;
+    let forceUpdate = false;
+    
+    // 如果已有提示词，询问是否强制更新
+    if (existingCount > 0) {
+      const result = await new Promise((resolve) => {
+        Modal.confirm({
+          title: '提示词初始化确认',
+          content: `检测到已存在 ${existingCount} 个提示词。\n\n是否强制更新所有提示词到最新版本？\n（更新后将覆盖现有提示词内容）`,
+          okText: '强制更新',
+          cancelText: missingCount > 0 ? '仅创建缺失的' : '取消',
+          onOk: () => resolve('force'),
+          onCancel: () => resolve(missingCount > 0 ? 'create' : 'cancel')
+        });
+      });
+      
+      if (result === 'cancel') {
+        return;
+      }
+      forceUpdate = (result === 'force');
     }
 
     // 执行初始化
-    const response = await initializeUserPrompts();
+    const response = await initializeUserPrompts(forceUpdate);
     if (response.status === 'success') {
       const data = response.data;
       const createdCount = data.summary?.created_count || 0;
       const skippedCount = data.summary?.skipped_count || 0;
       
-      Message.success(`${response.message || '初始化完成！'}创建了 ${createdCount} 个提示词，跳过 ${skippedCount} 个`);
+      if (forceUpdate) {
+        Message.success(`强制更新完成！更新了 ${createdCount} 个提示词`);
+      } else {
+        Message.success(`${response.message || '初始化完成！'}创建了 ${createdCount} 个提示词，跳过 ${skippedCount} 个`);
+      }
       
       // 重新加载用户提示词列表
       await loadUserPrompts();

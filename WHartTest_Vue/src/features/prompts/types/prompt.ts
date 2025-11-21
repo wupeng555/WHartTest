@@ -3,11 +3,11 @@
  */
 export type PromptType =
   | 'general'
-  | 'document_structure'
-  | 'direct_analysis'
-  | 'global_analysis'
-  | 'module_analysis'
+  | 'completeness_analysis'
   | 'consistency_analysis'
+  | 'testability_analysis'
+  | 'feasibility_analysis'
+  | 'clarity_analysis'
   | 'test_case_execution'
   | 'brain_orchestrator';
 
@@ -16,11 +16,11 @@ export type PromptType =
  */
 export const PROMPT_TYPE_CHOICES = [
   { key: 'general', name: '通用对话', isProgramCall: false },
-  { key: 'document_structure', name: '文档结构分析', isProgramCall: true },
-  { key: 'direct_analysis', name: '直接分析', isProgramCall: true },
-  { key: 'global_analysis', name: '全局分析', isProgramCall: true },
-  { key: 'module_analysis', name: '模块分析', isProgramCall: true },
+  { key: 'completeness_analysis', name: '完整性分析', isProgramCall: true },
   { key: 'consistency_analysis', name: '一致性分析', isProgramCall: true },
+  { key: 'testability_analysis', name: '可测性分析', isProgramCall: true },
+  { key: 'feasibility_analysis', name: '可行性分析', isProgramCall: true },
+  { key: 'clarity_analysis', name: '清晰度分析', isProgramCall: true },
   { key: 'test_case_execution', name: '测试用例执行', isProgramCall: true },
   { key: 'brain_orchestrator', name: '智能规划', isProgramCall: false },
 ] as const;

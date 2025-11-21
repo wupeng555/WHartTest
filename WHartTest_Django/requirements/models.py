@@ -226,6 +226,8 @@ class ReviewReport(models.Model):
     clarity_score = models.IntegerField(_('清晰度评分'), default=0, help_text='0-100分')
     consistency_score = models.IntegerField(_('一致性评分'), default=0, help_text='0-100分')
     completeness_score = models.IntegerField(_('完整性评分'), default=0, help_text='0-100分')
+    testability_score = models.IntegerField(_('可测性评分'), default=0, help_text='0-100分')
+    feasibility_score = models.IntegerField(_('可行性评分'), default=0, help_text='0-100分')
 
     # 问题统计
     total_issues = models.IntegerField(_('问题总数'), default=0)
@@ -236,6 +238,14 @@ class ReviewReport(models.Model):
     # 评审内容
     summary = models.TextField(_('评审摘要'), blank=True)
     recommendations = models.TextField(_('改进建议'), blank=True)
+    
+    # 专项分析详细结果（存储完整的issues, strengths, recommendations等）
+    specialized_analyses = models.JSONField(
+        _('专项分析详情'),
+        default=dict,
+        blank=True,
+        help_text='存储完整性、一致性、可测性、可行性、清晰度5个专项分析的详细结果'
+    )
 
     # 元数据
     created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)

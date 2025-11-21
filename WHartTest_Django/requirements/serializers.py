@@ -106,6 +106,10 @@ class ReviewReportSerializer(serializers.ModelSerializer):
     issues = ReviewIssueSerializer(many=True, read_only=True)
     module_results = ModuleReviewResultSerializer(many=True, read_only=True)
     
+    # 新架构字段 - 专项分析和评分
+    specialized_analyses = serializers.SerializerMethodField()
+    scores = serializers.SerializerMethodField()
+    
     class Meta:
         model = ReviewReport
         fields = [
@@ -114,9 +118,66 @@ class ReviewReportSerializer(serializers.ModelSerializer):
             'completion_score', 'total_issues', 'high_priority_issues',
             'medium_priority_issues', 'low_priority_issues',
             'summary', 'recommendations', 'issues', 'module_results',
+            'specialized_analyses', 'scores',  # 新增字段
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'review_date', 'created_at', 'updated_at']
+    
+    def get_scores(self, obj):
+        """获取5个专项分数"""
+        return {
+            'completeness': obj.completeness_score,
+            'consistency': obj.consistency_score,
+            'testability': obj.testability_score,
+            'feasibility': obj.feasibility_score,
+            'clarity': obj.clarity_score,
+        }
+    
+    def get_specialized_analyses(self, obj):
+        """返回专项分析详情,直接从JSONField读取"""
+        # 如果specialized_analyses字段有数据,直接返回
+        if obj.specialized_analyses and isinstance(obj.specialized_analyses, dict):
+            return obj.specialized_analyses
+        
+        # 如果没有(旧数据或默认),则返回基于评分字段构建的基本结构
+        return {
+            'completeness_analysis': {
+                'overall_score': obj.completeness_score,
+                'summary': f"完整性评分: {obj.completeness_score}分",
+                'issues': [],
+                'strengths': [],
+                'recommendations': []
+            },
+            'consistency_analysis': {
+                'overall_score': obj.consistency_score,
+                'summary': f"一致性评分: {obj.consistency_score}分",
+                'issues': [],
+                'strengths': [],
+                'recommendations': []
+            },
+            'testability_analysis': {
+                'overall_score': obj.testability_score,
+                'summary': f"可测性评分: {obj.testability_score}分",
+                'issues': [],
+                'strengths': [],
+                'recommendations': []
+            },
+            'feasibility_analysis': {
+                'overall_score': obj.feasibility_score,
+                'summary': f"可行性评分: {obj.feasibility_score}分",
+                'issues': [],
+                'strengths': [],
+                'recommendations': []
+            },
+            'clarity_analysis': {
+                'overall_score': obj.clarity_score,
+                'summary': f"清晰度评分: {obj.clarity_score}分",
+                'issues': [],
+                'strengths': [],
+                'recommendations': []
+            }
+        }
+
 
 
 class RequirementDocumentDetailSerializer(RequirementDocumentSerializer):
@@ -274,6 +335,13 @@ class ReviewAnalysisRequestSerializer(serializers.Serializer):
         max_length=1000,
         required=False,
         help_text="自定义评审要求"
+    )
+    max_workers = serializers.IntegerField(
+        default=3,
+        min_value=1,
+        max_value=10,
+        required=False,
+        help_text="并发执行的最大worker数量，默认3。数值越大速度越快但可能触发API限流"
     )
 
 

@@ -7,11 +7,13 @@ from django.utils.translation import gettext_lazy as _
 
 class PromptType(models.TextChoices):
     GENERAL = 'general', _('通用对话')
-    DOCUMENT_STRUCTURE = 'document_structure', _('文档结构分析')
-    DIRECT_ANALYSIS = 'direct_analysis', _('直接分析')
-    GLOBAL_ANALYSIS = 'global_analysis', _('全局分析')
-    MODULE_ANALYSIS = 'module_analysis', _('模块分析')
+    # 新的5个专项分析类型（充分利用200k上下文）
+    COMPLETENESS_ANALYSIS = 'completeness_analysis', _('完整性分析')
     CONSISTENCY_ANALYSIS = 'consistency_analysis', _('一致性分析')
+    TESTABILITY_ANALYSIS = 'testability_analysis', _('可测性分析')
+    FEASIBILITY_ANALYSIS = 'feasibility_analysis', _('可行性分析')
+    CLARITY_ANALYSIS = 'clarity_analysis', _('清晰度分析')
+    # 其他类型
     TEST_CASE_EXECUTION = 'test_case_execution', _('测试用例执行')
     BRAIN_ORCHESTRATOR = 'brain_orchestrator', _('智能规划')
 
@@ -22,11 +24,11 @@ class UserPrompt(models.Model):
     """
 
     PROGRAM_CALL_TYPES = [
-        PromptType.DOCUMENT_STRUCTURE,
-        PromptType.DIRECT_ANALYSIS,
-        PromptType.GLOBAL_ANALYSIS,
-        PromptType.MODULE_ANALYSIS,
+        PromptType.COMPLETENESS_ANALYSIS,
         PromptType.CONSISTENCY_ANALYSIS,
+        PromptType.TESTABILITY_ANALYSIS,
+        PromptType.FEASIBILITY_ANALYSIS,
+        PromptType.CLARITY_ANALYSIS,
         PromptType.TEST_CASE_EXECUTION,
     ]
 
@@ -95,11 +97,11 @@ class UserPrompt(models.Model):
             models.UniqueConstraint(
                 fields=['user', 'prompt_type'],
                 condition=models.Q(prompt_type__in=[
-                    PromptType.DOCUMENT_STRUCTURE.value,
-                    PromptType.DIRECT_ANALYSIS.value,
-                    PromptType.GLOBAL_ANALYSIS.value,
-                    PromptType.MODULE_ANALYSIS.value,
+                    PromptType.COMPLETENESS_ANALYSIS.value,
                     PromptType.CONSISTENCY_ANALYSIS.value,
+                    PromptType.TESTABILITY_ANALYSIS.value,
+                    PromptType.FEASIBILITY_ANALYSIS.value,
+                    PromptType.CLARITY_ANALYSIS.value,
                     PromptType.TEST_CASE_EXECUTION.value,
                 ]),
                 name='unique_user_program_prompt_type'

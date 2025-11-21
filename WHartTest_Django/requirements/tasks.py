@@ -52,7 +52,7 @@ def execute_requirement_review(self, document_id, analysis_options=None, review_
         else:
             review_report = review_service.start_comprehensive_review(
                 document,
-                analysis_options or {}
+                analysis_options or {}  # 传递完整的analysis_options
             )
         
         logger.info(f"文档 {document.title} 评审完成, 报告ID: {review_report.id}")

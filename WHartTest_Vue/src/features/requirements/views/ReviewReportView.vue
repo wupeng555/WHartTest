@@ -30,6 +30,10 @@
         />
       </div>
       <div class="header-actions">
+        <a-button type="text" @click="switchToSpecializedReport">
+          <template #icon><icon-book /></template>
+          专项分析
+        </a-button>
         <a-button type="outline" @click="exportReport">
           <template #icon><icon-download /></template>
           导出报告
@@ -273,6 +277,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import {
   IconArrowLeft,
+  IconBook,
   IconDownload,
   IconShareAlt,
   IconTrophy,
@@ -466,6 +471,13 @@ const resolveIssue = async (issue: ReviewIssue) => {
 };
 
 // 导出报告
+// 切换到专项分析报告
+const switchToSpecializedReport = () => {
+  if (documentDetail.value?.id) {
+    router.push(`/requirements/${documentDetail.value.id}/report`);
+  }
+};
+
 const exportReport = () => {
   Message.info('导出功能开发中...');
 };
