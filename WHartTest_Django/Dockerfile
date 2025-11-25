@@ -6,7 +6,7 @@
 # ============================================
 # 第一阶段：构建阶段（包含编译工具）
 # ============================================
-FROM python:3.11-slim AS builder
+FROM docker.m.daocloud.io/library/python:3.11-slim AS builder
 
 WORKDIR /build
 
@@ -34,7 +34,7 @@ RUN uv venv /opt/venv && \
 # ============================================
 # 第二阶段：运行阶段（仅包含运行时依赖）
 # ============================================
-FROM python:3.11-slim
+FROM docker.m.daocloud.io/library/python:3.11-slim
 
 WORKDIR /app
 
