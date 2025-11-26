@@ -1,7 +1,6 @@
 import axios from 'axios';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/store/authStore';
-import { isTokenInvalidError, handleAuthError } from '@/utils/authErrorHandler';
 
 // 定义我们需要的请求配置类型
 type RequestConfig = {
@@ -202,7 +201,7 @@ service.interceptors.response.use(
 
       // 如果正在刷新token，将请求加入队列
       if (isRefreshing) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve, _reject) => {
           subscribeTokenRefresh((token: string) => {
             if (!originalRequest.headers) {
               originalRequest.headers = {};

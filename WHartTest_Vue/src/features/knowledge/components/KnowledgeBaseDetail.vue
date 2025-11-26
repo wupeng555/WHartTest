@@ -464,14 +464,15 @@ const closeDocumentDetail = () => {
   selectedDocumentId.value = null;
 };
 
-const getProjectName = (projectId: number) => {
+const getProjectName = (projectId: number | string) => {
   // 首先尝试从知识库数据中获取项目名称
   if (props.knowledgeBase.project_name) {
     return props.knowledgeBase.project_name;
   }
 
   // 如果没有，从项目store中获取
-  const project = projectStore.projectOptions.find(p => p.value === projectId);
+  const numericId = typeof projectId === 'string' ? parseInt(projectId, 10) : projectId;
+  const project = projectStore.projectOptions.find(p => p.value === numericId);
   return project ? project.label : String(projectId);
 };
 

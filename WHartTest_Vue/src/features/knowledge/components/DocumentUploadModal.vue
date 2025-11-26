@@ -316,7 +316,7 @@ const handleSubmit = async () => {
       }
     }, 200);
 
-    const result = await KnowledgeService.uploadDocument(uploadData);
+    await KnowledgeService.uploadDocument(uploadData);
 
     clearInterval(progressInterval);
     uploadProgress.value = 100;

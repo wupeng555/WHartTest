@@ -195,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, watch } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
@@ -213,7 +213,6 @@ import {
   IconSettings,
   IconUser,
   IconDown,
-  IconDashboard,
   IconApps,
   IconSafe,
   IconMenuFold,
