@@ -352,10 +352,10 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
-        # 应用总日志文件 - 按日期轮转
+        # 应用总日志文件 - 使用安全的时间轮转处理器
         'app_file': {
             'level': 'INFO',
-            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'class': 'wharttest_django.safe_log_handler.SafeTimedRotatingFileHandler',
             'filename': str(LOGS_DIR / 'app.log'),
             'when': 'midnight',
             'interval': 1,
@@ -366,7 +366,7 @@ LOGGING = {
         # 错误日志文件 - 只记录ERROR及以上
         'error_file': {
             'level': 'ERROR',
-            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'class': 'wharttest_django.safe_log_handler.SafeTimedRotatingFileHandler',
             'filename': str(LOGS_DIR / 'error.log'),
             'when': 'midnight',
             'interval': 1,
@@ -377,7 +377,7 @@ LOGGING = {
         # Requirements应用专用日志
         'requirements_file': {
             'level': 'DEBUG',
-            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'class': 'wharttest_django.safe_log_handler.SafeTimedRotatingFileHandler',
             'filename': str(LOGS_DIR / 'requirements.log'),
             'when': 'midnight',
             'interval': 1,
@@ -388,7 +388,7 @@ LOGGING = {
         # Celery任务日志
         'celery_file': {
             'level': 'INFO',
-            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'class': 'wharttest_django.safe_log_handler.SafeTimedRotatingFileHandler',
             'filename': str(LOGS_DIR / 'celery.log'),
             'when': 'midnight',
             'interval': 1,

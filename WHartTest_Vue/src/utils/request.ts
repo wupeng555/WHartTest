@@ -149,6 +149,26 @@ service.interceptors.response.use(
 
     // 检查是否是401错误（未授权）
     if (response && response.status === 401) {
+      // 如果是登录请求返回401，说明凭据错误，直接返回后端的错误信息，不触发token刷新逻辑
+      if (originalRequest.url?.includes('/token/') && !originalRequest.url?.includes('/token/refresh/')) {
+        const responseData = response.data;
+        let loginErrorMessage = '认证失败';
+        if (responseData) {
+          if (responseData.message) {
+            loginErrorMessage = responseData.message;
+          } else if (responseData.detail) {
+            loginErrorMessage = responseData.detail;
+          } else if (responseData.errors?.detail) {
+            loginErrorMessage = responseData.errors.detail;
+          }
+        }
+        return Promise.reject({
+          success: false,
+          status: 401,
+          error: loginErrorMessage,
+        });
+      }
+      
       // 如果是刷新token的请求失败，直接登出
       if (originalRequest.url?.includes('/token/refresh/')) {
         const authStore = useAuthStore();

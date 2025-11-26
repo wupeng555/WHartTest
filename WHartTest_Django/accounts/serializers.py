@@ -714,6 +714,11 @@ class UpdateGroupPermissionsSerializer(serializers.Serializer):
 
 
 class MyTokenObtainPairSerializer(BaseTokenObtainPairSerializer):
+    # 覆盖默认的错误消息，使其更友好
+    default_error_messages = {
+        'no_active_account': '账号或密码错误'
+    }
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
