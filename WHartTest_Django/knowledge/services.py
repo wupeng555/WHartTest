@@ -404,28 +404,10 @@ class VectorStoreManager:
                     logger.info(f"创建新的向量存储实例: {cache_key}")
                     self._vector_store = self._create_vector_store()
                     self._vector_store_cache[cache_key] = self._vector_store
-                    
-                    # 创建后立即检查和修复权限
-                    persist_directory = os.path.join(
-                        settings.MEDIA_ROOT,
-                        'knowledge_bases',
-                        str(self.knowledge_base.id),
-                        'chroma_db'
-                    )
-                    self._ensure_permissions(persist_directory)
             else:
                 logger.info(f"创建新的向量存储实例: {cache_key}")
                 self._vector_store = self._create_vector_store()
                 self._vector_store_cache[cache_key] = self._vector_store
-
-                # 创建后立即检查和修复权限
-                persist_directory = os.path.join(
-                    settings.MEDIA_ROOT,
-                    'knowledge_bases',
-                    str(self.knowledge_base.id),
-                    'chroma_db'
-                )
-                self._ensure_permissions(persist_directory)
 
         return self._vector_store
 
@@ -468,118 +450,50 @@ class VectorStoreManager:
             'chroma_db'
         )
 
-        # 确保权限正确
-        self._ensure_permissions(persist_directory)
+        # 确保目录存在
+        os.makedirs(persist_directory, exist_ok=True)
 
-        # 临时设置umask确保新文件有正确权限
-        old_umask = os.umask(0o000)
-        try:
-            # 创建ChromaDB实例
-            chroma_instance = Chroma(
-                persist_directory=persist_directory,
-                embedding_function=self.embeddings,
-                collection_name=f"kb_{self.knowledge_base.id}"
-            )
-        finally:
-            # 恢复原来的umask
-            os.umask(old_umask)
-
-        # 创建后立即修复新生成的SQLite文件权限
-        self._fix_sqlite_permissions_after_creation(persist_directory)
+        # 创建ChromaDB实例
+        chroma_instance = Chroma(
+            persist_directory=persist_directory,
+            embedding_function=self.embeddings,
+            collection_name=f"kb_{self.knowledge_base.id}"
+        )
 
         return chroma_instance
 
-    def _fix_sqlite_permissions_after_creation(self, persist_directory):
-        """在ChromaDB创建SQLite文件后修复权限"""
-        import time
+    def _fix_permissions_if_needed(self, persist_directory: str) -> bool:
+        """检测并修复权限问题，返回是否执行了修复"""
+        import glob
+        fixed = False
 
-        # 等待一小段时间确保文件已创建
-        time.sleep(0.2)
-
-        sqlite_files = [
-            'chroma.sqlite3',
-            'chroma.sqlite3-wal',
-            'chroma.sqlite3-shm'
-        ]
-
-        # 多次尝试修复权限，因为文件可能延迟创建
-        for attempt in range(3):
-            files_fixed = 0
-            for filename in sqlite_files:
-                filepath = os.path.join(persist_directory, filename)
-                if os.path.exists(filepath):
-                    try:
-                        # 先检查当前权限
-                        current_mode = oct(os.stat(filepath).st_mode)[-3:]
-                        if current_mode < '666':
-                            os.chmod(filepath, 0o666)
-                            logger.info(f"修复SQLite文件权限: {filepath} ({current_mode} -> 666)")
-                        files_fixed += 1
-                    except Exception as e:
-                        logger.warning(f"修复SQLite文件权限失败 {filepath}: {e}")
-
-            if files_fixed > 0:
-                break
-
-            # 如果没有找到文件，等待更长时间再试
-            if attempt < 2:
-                time.sleep(0.3)
-
-        # 再次确保目录权限正确
         try:
-            current_dir_mode = oct(os.stat(persist_directory).st_mode)[-3:]
-            if current_dir_mode < '777':
-                os.chmod(persist_directory, 0o777)
-                logger.info(f"重新设置目录权限: {persist_directory} ({current_dir_mode} -> 777)")
-        except Exception as e:
-            logger.warning(f"重新设置目录权限失败: {e}")
+            # 修复目录权限
+            if os.path.exists(persist_directory):
+                current_mode = os.stat(persist_directory).st_mode & 0o777
+                if current_mode < 0o775:
+                    os.chmod(persist_directory, 0o775)
+                    logger.info(f"修复目录权限: {persist_directory}")
+                    fixed = True
 
-        # 设置父目录权限
-        try:
-            parent_dir = os.path.dirname(persist_directory)
-            parent_mode = oct(os.stat(parent_dir).st_mode)[-3:]
-            if parent_mode < '777':
-                os.chmod(parent_dir, 0o777)
-                logger.info(f"设置父目录权限: {parent_dir} ({parent_mode} -> 777)")
-        except Exception as e:
-            logger.warning(f"设置父目录权限失败: {e}")
-
-    def _ensure_permissions(self, persist_directory):
-        """确保目录和文件权限正确"""
-        try:
-            # 确保目录存在
-            os.makedirs(persist_directory, exist_ok=True)
-
-            # 设置目录权限
-            os.chmod(persist_directory, 0o777)
-
-            # 设置父目录权限
-            parent_dirs = [
-                os.path.dirname(persist_directory),  # chroma_db的父目录
-                os.path.dirname(os.path.dirname(persist_directory)),  # knowledge_bases目录
-                os.path.dirname(os.path.dirname(os.path.dirname(persist_directory)))  # media目录
-            ]
-
-            for parent_dir in parent_dirs:
-                if os.path.exists(parent_dir):
-                    try:
-                        os.chmod(parent_dir, 0o777)
-                    except Exception as e:
-                        logger.warning(f"设置父目录权限失败 {parent_dir}: {e}")
-
-            # 修复现有SQLite文件权限
-            sqlite_patterns = ['*.sqlite3', '*.sqlite3-wal', '*.sqlite3-shm', '*.db']
-            for pattern in sqlite_patterns:
-                import glob
+            # 修复 SQLite 文件权限
+            for pattern in ['*.sqlite3', '*.sqlite3-wal', '*.sqlite3-shm']:
                 for filepath in glob.glob(os.path.join(persist_directory, pattern)):
-                    try:
-                        os.chmod(filepath, 0o666)
-                        logger.info(f"修复现有SQLite文件权限: {filepath}")
-                    except Exception as e:
-                        logger.warning(f"修复SQLite文件权限失败 {filepath}: {e}")
-
+                    current_mode = os.stat(filepath).st_mode & 0o777
+                    if current_mode < 0o664:
+                        os.chmod(filepath, 0o664)
+                        logger.info(f"修复文件权限: {filepath}")
+                        fixed = True
         except Exception as e:
-            logger.warning(f"确保权限失败: {e}")
+            logger.warning(f"修复权限失败: {e}")
+
+        return fixed
+
+    def _is_permission_error(self, error: Exception) -> bool:
+        """判断是否是权限相关错误"""
+        error_str = str(error).lower()
+        permission_keywords = ['permission', 'access', 'denied', 'readonly', 'locked', 'sqlite']
+        return any(keyword in error_str for keyword in permission_keywords)
 
     def add_documents(self, documents: List[LangChainDocument], document_obj: Document) -> List[str]:
         """添加文档到向量存储"""
@@ -591,26 +505,26 @@ class VectorStoreManager:
             )
             chunks = text_splitter.split_documents(documents)
 
-            # 临时设置umask确保新文件有正确权限
-            old_umask = os.umask(0o000)
-            try:
-                # 添加到向量存储
-                vector_ids = self.vector_store.add_documents(chunks)
-            finally:
-                # 恢复原来的umask
-                os.umask(old_umask)
-
-            # 添加文档后修复可能新创建的SQLite文件权限
             persist_directory = os.path.join(
                 settings.MEDIA_ROOT,
                 'knowledge_bases',
                 str(self.knowledge_base.id),
                 'chroma_db'
             )
-            # 使用统一的权限确保方法
-            self._ensure_permissions(persist_directory)
-            # 额外的SQLite文件权限修复
-            self._fix_sqlite_permissions_after_creation(persist_directory)
+
+            try:
+                # 添加到向量存储
+                vector_ids = self.vector_store.add_documents(chunks)
+            except Exception as e:
+                # 如果是权限错误，尝试修复后重试
+                if self._is_permission_error(e):
+                    logger.warning(f"向量存储操作失败，尝试修复权限: {e}")
+                    if self._fix_permissions_if_needed(persist_directory):
+                        vector_ids = self.vector_store.add_documents(chunks)
+                    else:
+                        raise
+                else:
+                    raise
 
             # 保存分块信息到数据库
             self._save_chunks_to_db(chunks, vector_ids, document_obj)
@@ -650,6 +564,13 @@ class VectorStoreManager:
         logger.info(f"   🤖 使用嵌入模型: {embedding_type}")
         logger.info(f"   🎯 返回数量: {k}, 相似度阈值: {score_threshold}")
 
+        persist_directory = os.path.join(
+            settings.MEDIA_ROOT,
+            'knowledge_bases',
+            str(self.knowledge_base.id),
+            'chroma_db'
+        )
+
         # 尝试执行搜索,带自动恢复
         max_retries = 2
         for attempt in range(max_retries):
@@ -659,7 +580,13 @@ class VectorStoreManager:
                 break  # 成功则跳出循环
             except Exception as e:
                 error_msg = str(e)
-                if ("does not exist" in error_msg or "Collection" in error_msg) and attempt < max_retries - 1:
+                # 处理权限错误
+                if self._is_permission_error(e) and attempt < max_retries - 1:
+                    logger.warning(f"搜索时遇到权限问题，尝试修复: {e}")
+                    if self._fix_permissions_if_needed(persist_directory):
+                        continue
+                # 处理 Collection 不存在错误
+                elif ("does not exist" in error_msg or "Collection" in error_msg) and attempt < max_retries - 1:
                     logger.error(f"Collection 不存在 (尝试 {attempt + 1}/{max_retries}): {e}")
                     # 清理缓存并重试
                     cache_key = str(self.knowledge_base.id)

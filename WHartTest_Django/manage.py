@@ -3,6 +3,10 @@
 import os
 import sys
 
+# 设置 umask 确保新建文件有正确的权限（664 文件，775 目录）
+# 这样 Django 和 Celery 进程可以互相读写文件
+os.umask(0o002)
+
 
 def main():
     """Run administrative tasks."""

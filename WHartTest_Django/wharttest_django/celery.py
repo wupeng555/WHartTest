@@ -5,6 +5,9 @@ import os
 import platform
 from celery import Celery
 
+# 设置 umask 确保新建文件有正确的权限（664 文件，775 目录）
+os.umask(0o002)
+
 # 设置默认的Django settings模块
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wharttest_django.settings')
 
