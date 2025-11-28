@@ -420,89 +420,22 @@ const testEmbeddingService = async () => {
 
   testingConnection.value = true;
   try {
-    // 真实调用嵌入API测试
-    const testText = 'This is a test embedding request.';
-    let testUrl = '';
-    let requestBody: any = {};
-    let headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    switch (formData.embedding_service) {
-      case 'openai':
-        testUrl = `${formData.api_base_url.replace(/\/+$/, '')}/embeddings`;
-        headers['Authorization'] = `Bearer ${formData.api_key}`;
-        requestBody = {
-          input: testText,
-          model: formData.model_name
-        };
-        break;
-      case 'azure_openai':
-        testUrl = `${formData.api_base_url.replace(/\/+$/, '')}/openai/deployments/${formData.model_name}/embeddings?api-version=2024-02-15-preview`;
-        headers['api-key'] = formData.api_key!;
-        requestBody = {
-          input: testText
-        };
-        break;
-      case 'ollama':
-        testUrl = `${formData.api_base_url.replace(/\/+$/, '')}/api/embeddings`;
-        requestBody = {
-          model: formData.model_name,
-          prompt: testText
-        };
-        break;
-      case 'custom':
-        // 自定义API假设使用类似OpenAI的格式
-        testUrl = formData.api_base_url.replace(/\/+$/, '');
-        if (formData.api_key) {
-          headers['Authorization'] = `Bearer ${formData.api_key}`;
-        }
-        requestBody = {
-          input: testText,
-          model: formData.model_name
-        };
-        break;
-    }
-
-    const response = await fetch(testUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(30000) // 30秒超时
+    // 调用后端 API 测试连接（避免跨域问题）
+    const result = await KnowledgeService.testEmbeddingConnection({
+      embedding_service: formData.embedding_service,
+      api_base_url: formData.api_base_url,
+      api_key: formData.api_key || undefined,
+      model_name: formData.model_name
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      // 验证返回的数据包含embedding
-      let hasEmbedding = false;
-      if (formData.embedding_service === 'ollama') {
-        hasEmbedding = data.embedding && Array.isArray(data.embedding);
-      } else {
-        hasEmbedding = data.data && Array.isArray(data.data) && data.data[0]?.embedding;
-      }
-      
-      if (hasEmbedding) {
-        Message.success('嵌入模型测试成功！服务运行正常');
-      } else {
-        Message.warning('服务响应成功但数据格式异常，请检查配置');
-      }
+    if (result.success) {
+      Message.success(result.message);
     } else {
-      const errorText = await response.text();
-      Message.error(`嵌入模型测试失败: HTTP ${response.status} - ${errorText}`);
+      Message.error(result.message);
     }
   } catch (error: any) {
     console.error('嵌入服务测试失败:', error);
-    let errorMessage = '嵌入模型测试失败';
-    
-    if (error.name === 'TimeoutError') {
-      errorMessage = '请求超时，请检查服务是否正常运行';
-    } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      errorMessage = '无法连接到服务，请检查URL和网络';
-    } else {
-      errorMessage = error.message || '嵌入模型测试失败';
-    }
-    
-    Message.error(errorMessage);
+    Message.error(error.message || '嵌入模型测试失败');
   } finally {
     testingConnection.value = false;
   }
