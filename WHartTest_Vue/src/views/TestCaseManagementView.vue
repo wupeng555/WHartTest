@@ -114,6 +114,15 @@ const startAutomationTask = (
         localStorage.setItem('wharttest_selected_prompt_id', String(requestData.prompt_id));
       }
 
+      // 保存知识库设置，使LangGraphChatView能恢复选中状态
+      const knowledgeSettings = {
+        useKnowledgeBase: requestData.use_knowledge_base || false,
+        selectedKnowledgeBaseId: requestData.knowledge_base_id || null,
+        similarityThreshold: 0.3, // 默认值
+        topK: 5 // 默认值
+      };
+      localStorage.setItem('langgraph_knowledge_settings', JSON.stringify(knowledgeSettings));
+
       const notificationReturn = Notification.info({
         title: notificationTitle,
         content: notificationContent,

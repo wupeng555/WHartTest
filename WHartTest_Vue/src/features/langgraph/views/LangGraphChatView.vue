@@ -1945,6 +1945,9 @@ onActivated(async () => {
   // 0. 加载保存的提示词ID（从其他页面跳转时可能已更新）
   loadSavedPromptId();
 
+  // 0.1 加载保存的知识库设置（从其他页面跳转时可能已更新）
+  loadKnowledgeBaseSettings();
+
   // 1. 刷新左侧的会话列表
   await loadSessionsFromServer();
 
