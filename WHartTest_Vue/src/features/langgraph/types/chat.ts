@@ -71,9 +71,20 @@ export interface ChatHistoryResponseData {
 }
 
 /**
+ * 会话详情（轻量级，用于列表展示）
+ */
+export interface ChatSessionDetail {
+  id: string;
+  title: string;
+  updated_at: string | null;
+  created_at: string | null;
+}
+
+/**
  * 会话列表响应数据
  */
 export interface ChatSessionsResponseData {
   user_id: string;
-  sessions: string[]; // 该用户所有 session_id 列表
+  sessions: string[]; // 该用户所有 session_id 列表（向后兼容）
+  sessions_detail?: ChatSessionDetail[]; // 带详情的会话列表
 }

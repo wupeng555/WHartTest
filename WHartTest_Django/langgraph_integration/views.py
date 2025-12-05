@@ -1339,8 +1339,9 @@ class ChatBatchDeleteAPIView(APIView):
 
 class UserChatSessionsAPIView(APIView):
     """
-    API endpoint for listing all chat session IDs for the authenticated user in a specific project.
+    API endpoint for listing all chat sessions for the authenticated user in a specific project.
     支持项目隔离，只返回指定项目的聊天会话。
+    优先从Django ChatSession模型读取（带标题和时间），回退到sqlite查询session_id。
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -1378,67 +1379,61 @@ class UserChatSessionsAPIView(APIView):
                 "errors": {"project_id": ["Permission denied or project not found."]}
             }, status=status.HTTP_403_FORBIDDEN)
 
+        # 优先从Django ChatSession模型读取会话列表（带标题和时间，无需查sqlite）
+        django_sessions = ChatSession.objects.filter(
+            user=request.user,
+            project_id=project_id
+        ).order_by('-updated_at').values('session_id', 'title', 'updated_at', 'created_at')
+        
+        sessions_list = []
+        django_session_ids = set()
+        
+        for s in django_sessions:
+            django_session_ids.add(s['session_id'])
+            sessions_list.append({
+                'id': s['session_id'],
+                'title': s['title'] or '新对话',
+                'updated_at': s['updated_at'].isoformat() if s['updated_at'] else None,
+                'created_at': s['created_at'].isoformat() if s['created_at'] else None,
+            })
+        
+        # 回退：检查sqlite中是否有Django模型没记录的会话
         db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
-        session_ids = set() # Use a set to store unique session_ids
-
-        if not os.path.exists(db_path):
-            return Response({
-                "status": "success",
-                "code": status.HTTP_200_OK,
-                "message": "No chat history found (history file does not exist).",
-                "data": {"user_id": user_id, "sessions": []}
-            }, status=status.HTTP_200_OK)
-
-        conn = None
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-
-            # Query for distinct thread_ids starting with the user_id and project_id prefix
-            # The thread_id is stored as "USERID_PROJECTID_SESSIONID"
-            thread_id_prefix = f"{user_id}_{project_id}_"
-            cursor.execute("SELECT DISTINCT thread_id FROM checkpoints WHERE thread_id LIKE ?", (thread_id_prefix + '%',))
-
-            rows = cursor.fetchall()
-
-            for row in rows:
-                full_thread_id = row[0]
-                # Extract session_id part: everything after "USERID_PROJECTID_"
-                if full_thread_id.startswith(thread_id_prefix):
-                    session_id_part = full_thread_id[len(thread_id_prefix):]
-                    if session_id_part: # Ensure there's something after the prefix
-                        session_ids.add(session_id_part)
-
-            return Response({
-                "status": "success", "code": status.HTTP_200_OK,
-                "message": "User chat sessions retrieved successfully.",
-                "data": {
-                    "user_id": user_id,
-                    "project_id": project_id,
-                    "project_name": project.name,
-                    "sessions": sorted(list(session_ids))
-                } # Return sorted list
-            }, status=status.HTTP_200_OK)
-
-        except sqlite3.Error as e:
-            # import logging
-            # logging.exception(f"SQLite error retrieving sessions for user {user_id}: {e}")
-            return Response({
-                "status": "error", "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": f"Database error while retrieving user sessions: {str(e)}", "data": {},
-                "errors": {"database_error": [str(e)]}
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception as e:
-            # import logging
-            # logging.exception(f"Unexpected error retrieving sessions for user {user_id}: {e}")
-            return Response({
-                "status": "error", "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": f"An unexpected error occurred: {str(e)}", "data": {},
-                "errors": {"unexpected_error": [str(e)]}
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        finally:
-            if conn:
+        if os.path.exists(db_path):
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                thread_id_prefix = f"{user_id}_{project_id}_"
+                cursor.execute("SELECT DISTINCT thread_id FROM checkpoints WHERE thread_id LIKE ?", (thread_id_prefix + '%',))
+                rows = cursor.fetchall()
                 conn.close()
+                
+                for row in rows:
+                    full_thread_id = row[0]
+                    if full_thread_id.startswith(thread_id_prefix):
+                        session_id_part = full_thread_id[len(thread_id_prefix):]
+                        if session_id_part and session_id_part not in django_session_ids:
+                            # sqlite有但Django没有的会话，添加到列表
+                            sessions_list.append({
+                                'id': session_id_part,
+                                'title': f'会话 {session_id_part[:8]}...',
+                                'updated_at': None,
+                                'created_at': None,
+                            })
+            except Exception as e:
+                logger.warning(f"UserChatSessionsAPIView: Failed to check sqlite for additional sessions: {e}")
+
+        return Response({
+            "status": "success", "code": status.HTTP_200_OK,
+            "message": "User chat sessions retrieved successfully.",
+            "data": {
+                "user_id": user_id,
+                "project_id": project_id,
+                "project_name": project.name,
+                "sessions": [s['id'] for s in sessions_list],  # 保持向后兼容
+                "sessions_detail": sessions_list  # 新增：带详情的会话列表
+            }
+        }, status=status.HTTP_200_OK)
 
 
 from django.views import View

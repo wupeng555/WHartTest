@@ -247,93 +247,8 @@ const chatHeaderRef = ref<{ refreshPrompts: () => Promise<void> } | null>(null);
 // 终止控制器
 let abortController = new AbortController();
 
-// 定时刷新控制
-let historyRefreshTimer: number | null = null;
-const isAutoRefreshing = ref(false); // 是否正在自动刷新
-let isMountedLoadComplete = false; // 标记onMounted是否完成了首次加载
-
-// 静默加载历史记录(不显示loading状态)
-const loadChatHistorySilently = async () => {
-  const storedSessionId = getSessionIdFromStorage();
-  if (!storedSessionId || !projectStore.currentProjectId) return;
-
-  try {
-    const response = await getChatHistory(storedSessionId, projectStore.currentProjectId);
-
-    if (response.status === 'success') {
-      const currentMessageCount = messages.value.length;
-      const historyMessageCount = response.data.history.filter(h => h.type !== 'system').length;
-      
-      // 只有当历史记录数量增加时才更新(说明有新消息)
-      if (historyMessageCount > currentMessageCount) {
-        console.log(`📥 检测到新消息: ${historyMessageCount - currentMessageCount}条`);
-        
-        // 🎨 保存当前的展开状态
-        const expandedStates = new Map<string, boolean>();
-        messages.value.forEach(msg => {
-          if (msg.isThinkingProcess && msg.isThinkingExpanded) {
-            const key = msg.content.substring(0, 100);
-            expandedStates.set(key, true);
-          }
-        });
-        
-        // ✅ 使用纯函数处理历史记录,自动插入步骤分隔符
-        const tempMessages = enrichMessagesWithSeparators(response.data.history, formatHistoryTime);
-        
-        // 🎨 合并连续的思考过程消息
-        messages.value = mergeThinkingProcessMessages(tempMessages);
-        
-        // 🎨 恢复展开状态
-        messages.value.forEach(msg => {
-          if (msg.isThinkingProcess) {
-            const key = msg.content.substring(0, 100);
-            if (expandedStates.has(key)) {
-              msg.isThinkingExpanded = true;
-            }
-          }
-        });
-      }
-    }
-  } catch (error) {
-    console.error('静默刷新历史记录失败:', error);
-    // 静默失败,不显示错误提示
-  }
-};
-
-// 停止自动刷新
-const stopAutoRefresh = () => {
-  if (historyRefreshTimer) {
-    clearInterval(historyRefreshTimer);
-    historyRefreshTimer = null;
-  }
-  isAutoRefreshing.value = false;
-};
-
-// 智能定时刷新历史记录(仅在非流式状态下)
-const startAutoRefresh = () => {
-  // 如果已经在刷新,先停止
-  stopAutoRefresh();
-  
-  historyRefreshTimer = window.setInterval(async () => {
-    // 只在以下条件下刷新:
-    // 1. 有会话ID
-    // 2. 不在流式输出中(没有活跃流或流已完成)
-    // 3. 不在加载状态
-    if (sessionId.value && !isLoading.value) {
-      const stream = activeStreams.value[sessionId.value];
-      const isStreaming = stream && !stream.isComplete;
-      
-      if (!isStreaming) {
-        console.log('🔄 自动刷新历史记录...');
-        isAutoRefreshing.value = true;
-        await loadChatHistorySilently();
-        isAutoRefreshing.value = false;
-      } else {
-        console.log('⏸️ 跳过刷新(流式输出进行中)');
-      }
-    }
-  }, 3000); // 每3秒检查一次
-};
+// 标记 onMounted 是否完成首次加载
+let isMountedLoadComplete = false;
 
 // 在本地存储中保存会话ID
 const saveSessionId = (id: string) => {
@@ -384,7 +299,6 @@ const saveSessionsToStorage = () => {
 
 // 从服务器加载会话列表
 const loadSessionsFromServer = async () => {
-  // 🔧 修复：静默处理没有项目ID的情况
   if (!projectStore.currentProjectId) {
     console.log('⏳ 等待项目加载完成，暂不加载会话列表');
     return;
@@ -395,105 +309,47 @@ const loadSessionsFromServer = async () => {
     const response = await getChatSessions(projectStore.currentProjectId);
 
     if (response.status === 'success') {
-      // 获取到会话ID列表后，需要为每个会话获取历史记录以显示标题
-      const sessionsData = response.data.sessions;
-
-      // 🔧 修复：使用临时数组收集会话，避免直接操作 chatSessions.value 导致的重复问题
-      const tempSessions: ChatSession[] = [];
-
-      // 如果没有会话，清空列表并返回
-      if (sessionsData.length === 0) {
-        chatSessions.value = [];
-        saveSessionsToStorage();
-        isLoading.value = false;
-        return;
-      }
-
-      // 为了避免一次发送太多请求，限制并发数量
-      const BATCH_SIZE = 3; // 一次处理3个会话
-
-      // 分批处理会话
-      for (let i = 0; i < sessionsData.length; i += BATCH_SIZE) {
-        const batch = sessionsData.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(async (sessionId) => {
-          try {
-            // 为每个会话获取历史记录
-            const historyResponse = await getChatHistory(sessionId, projectStore.currentProjectId!);
-            if (historyResponse.status === 'success') {
-              const history = historyResponse.data.history;
-              // 使用第一条人类消息作为标题
-              const firstHumanMessage = history.find(msg => msg.type === 'human')?.content || '';
-              const title = firstHumanMessage
-                ? (firstHumanMessage.length > 20 ? `${firstHumanMessage.substring(0, 20)}...` : firstHumanMessage)
-                : '未命名对话';
-
-              // 获取最后一条消息的时间戳作为会话时间
-              const lastMessage = history[history.length - 1];
-              let lastTime = new Date();
-              if (lastMessage?.timestamp) {
-                try {
-                  // 处理时间戳格式，确保正确解析
-                  const timestamp = lastMessage.timestamp;
-                  // 如果时间戳格式是 "YYYY-MM-DD HH:MM:SS"，需要确保正确解析
-                  lastTime = new Date(timestamp.replace(' ', 'T'));
-                  // 检查日期是否有效
-                  if (isNaN(lastTime.getTime())) {
-                    lastTime = new Date();
-                  }
-                } catch (error) {
-                  console.error('解析会话时间戳失败:', error);
-                  lastTime = new Date();
-                }
+      // 优先使用 sessions_detail（包含标题和时间），避免 N+1 查询
+      const sessionsDetail = response.data.sessions_detail;
+      
+      if (sessionsDetail && sessionsDetail.length > 0) {
+        // 直接使用后端返回的会话详情
+        const tempSessions: ChatSession[] = sessionsDetail.map(detail => {
+          let lastTime = new Date();
+          if (detail.updated_at) {
+            try {
+              lastTime = new Date(detail.updated_at.replace(' ', 'T'));
+              if (isNaN(lastTime.getTime())) {
+                lastTime = new Date();
               }
-
-              // 🔧 修复：添加到临时数组，避免重复
-              tempSessions.push({
-                id: sessionId,
-                title,
-                lastTime,
-                messageCount: history.length
-              });
-            } else {
-              // 🔧 修复：如果获取历史失败（会话可能已损坏），仍然显示在列表中但标记为异常
-              console.warn(`⚠️ 会话 ${sessionId} 历史记录获取失败，状态: ${historyResponse.status}`);
-              tempSessions.push({
-                id: sessionId,
-                title: `会话 ${sessionId.substring(0, 8)}... (历史记录异常)`,
-                lastTime: new Date(),
-                messageCount: 0
-              });
+            } catch {
+              lastTime = new Date();
             }
-          } catch (error) {
-            // 🔧 修复：网络错误或其他异常，仍然显示会话但标记为异常
-            console.error(`❌ 获取会话 ${sessionId} 历史记录异常:`, error);
-            tempSessions.push({
-              id: sessionId,
-              title: `会话 ${sessionId.substring(0, 8)}... (加载失败)`,
-              lastTime: new Date(),
-              messageCount: 0
-            });
           }
-        }));
+          return {
+            id: detail.id,
+            title: detail.title || '未命名对话',
+            lastTime,
+            messageCount: 0
+          };
+        });
+
+        // 按时间倒序排序
+        tempSessions.sort((a, b) => b.lastTime.getTime() - a.lastTime.getTime());
+        chatSessions.value = tempSessions;
+        console.log(`✅ 从服务器快速加载了 ${tempSessions.length} 个会话`);
+      } else {
+        // 兼容旧版后端：无 sessions_detail 时清空列表
+        chatSessions.value = [];
       }
 
-      // 🔧 修复：按时间倒序排序后，一次性替换整个列表
-      tempSessions.sort((a, b) => b.lastTime.getTime() - a.lastTime.getTime());
-      chatSessions.value = tempSessions;
-
-      console.log(`✅ 从服务器加载了 ${tempSessions.length} 个会话`);
-
-      // 保存到本地存储作为备份
       saveSessionsToStorage();
     } else {
       Message.error('获取会话列表失败');
-      // 🔧 修复：如果服务器获取失败，不从本地存储加载，避免加载旧的重复数据
-      // loadSessionsFromStorage();
     }
   } catch (error) {
     console.error('获取会话列表失败:', error);
     Message.error('获取会话列表失败，请稍后重试');
-    // 🔧 修复：如果服务器请求出错，不从本地存储加载，避免加载旧的重复数据
-    // loadSessionsFromStorage();
   } finally {
     isLoading.value = false;
   }
@@ -668,7 +524,7 @@ const solidifyStreamContent = () => {
       // 先添加工具消息和中间消息
       if (stream.messages && stream.messages.length > 0) {
         stream.messages.forEach(msg => {
-          messages.value.push({
+          const chatMsg: ChatMessage = {
             content: msg.content,
             isUser: false,
             time: msg.time,
@@ -676,7 +532,18 @@ const solidifyStreamContent = () => {
             isExpanded: msg.isExpanded,
             isThinkingProcess: msg.isThinkingProcess,
             isThinkingExpanded: msg.isThinkingExpanded
-          });
+          };
+          // 保留 Agent Step 相关字段
+          if (typeof msg.stepNumber === 'number') {
+            chatMsg.stepNumber = msg.stepNumber;
+          }
+          if (typeof msg.maxSteps === 'number') {
+            chatMsg.maxSteps = msg.maxSteps;
+          }
+          if (msg.stepStatus) {
+            chatMsg.stepStatus = msg.stepStatus;
+          }
+          messages.value.push(chatMsg);
         });
       }
       // 添加AI回复内容
@@ -1668,17 +1535,6 @@ watch(
   { deep: true }
 );
 
-// 监听会话ID变化,控制自动刷新
-watch(() => sessionId.value, (newSessionId) => {
-  if (newSessionId) {
-    // 有会话时启动自动刷新
-    startAutoRefresh();
-  } else {
-    // 无会话时停止自动刷新
-    stopAutoRefresh();
-  }
-});
-
 // 🔧 修复：监听项目ID变化，当项目加载完成后自动加载会话数据
 watch(() => projectStore.currentProjectId, async (newProjectId, oldProjectId) => {
   console.log(`📊 项目ID变化: ${oldProjectId} -> ${newProjectId}`);
@@ -1692,11 +1548,6 @@ watch(() => projectStore.currentProjectId, async (newProjectId, oldProjectId) =>
     if (isMountedLoadComplete || !oldProjectId) {
       await loadSessionsFromServer();
       await loadChatHistory();
-      
-      // 启动自动刷新(如果有会话)
-      if (sessionId.value) {
-        startAutoRefresh();
-      }
     }
   } else if (!newProjectId && oldProjectId) {
     // 项目被清除
@@ -1704,7 +1555,6 @@ watch(() => projectStore.currentProjectId, async (newProjectId, oldProjectId) =>
     messages.value = [];
     chatSessions.value = [];
     sessionId.value = '';
-    stopAutoRefresh();
   }
 });
 
@@ -1915,11 +1765,6 @@ onMounted(async () => {
 
     // 尝试加载当前会话的历史记录（只加载消息，不更新会话列表）
     await loadChatHistory();
-    
-    // 启动自动刷新(如果有会话)
-    if (sessionId.value) {
-      startAutoRefresh();
-    }
   }
 
   // 加载当前LLM配置（不依赖项目）
@@ -1977,8 +1822,6 @@ onActivated(async () => {
 onUnmounted(() => {
   // 组件卸载时，终止任何正在进行的流式请求
   abortController.abort();
-  // 停止自动刷新
-  stopAutoRefresh();
 });
 </script>
 
@@ -1999,6 +1842,7 @@ export default {
 
 .chat-container {
   flex: 1;
+  min-height: 0; /* 关键：允许 flex 子元素收缩 */
   display: flex;
   flex-direction: column;
   height: 100%;

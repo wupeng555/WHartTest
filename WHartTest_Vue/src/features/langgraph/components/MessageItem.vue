@@ -217,31 +217,8 @@ const formattedContent = computed(() => {
     // 使用marked解析Markdown (同步版本)
     const htmlContent = marked(processedContent) as string;
 
-    // 调试信息：查看Markdown解析结果
-    if (props.message.messageType === 'ai' && processedContent.includes('```')) {
-      console.log('📋 [Markdown解析] 代码块渲染调试:', {
-        originalContent: processedContent.substring(0, 200) + '...',
-        htmlOutput: htmlContent.substring(0, 300) + '...',
-        hasPreTags: htmlContent.includes('<pre>'),
-        hasCodeTags: htmlContent.includes('<code>'),
-        isStreaming: props.message.isStreaming,
-        isLoading: props.message.isLoading
-      });
-    }
-
     // 使用DOMPurify净化HTML防止XSS攻击
-    const sanitizedContent = DOMPurify.sanitize(htmlContent);
-
-    // 最终调试信息
-    if (props.message.messageType === 'ai' && processedContent.includes('```')) {
-      console.log('🎨 [最终渲染] 净化后的HTML:', {
-        sanitizedContent: sanitizedContent.substring(0, 300) + '...',
-        hasPreTags: sanitizedContent.includes('<pre>'),
-        hasCodeTags: sanitizedContent.includes('<code>')
-      });
-    }
-
-    return sanitizedContent;
+    return DOMPurify.sanitize(htmlContent);
   } catch (error) {
     console.error('Error parsing markdown:', error);
     return props.message.content;
@@ -258,27 +235,16 @@ const handleStreamingMarkdown = (content: string) => {
     .replace(/\\t/g, '\t')
     .replace(/\\r/g, '\r');
 
-  console.log('🔍 [流式Markdown] 处理代码块渲染:', {
-    originalContent: content.substring(0, 100) + '...',
-    processedContent: processedContent.substring(0, 100) + '...',
-    hasCodeBlocks: processedContent.includes('```'),
-    codeBlockCount: (processedContent.match(/```/g) || []).length,
-    contentLength: processedContent.length,
-    hasEscapedNewlines: content.includes('\\n')
-  });
-
   // 计算```的出现次数（使用处理过的内容）
   const codeBlockMarkers = (processedContent.match(/```/g) || []).length;
 
   // 如果```出现偶数次，说明代码块是完整的（每个开始都有对应的结束）
   if (codeBlockMarkers > 0 && codeBlockMarkers % 2 === 0) {
-    console.log('✅ [代码块完整] 直接返回处理后的内容');
     return processedContent;
   }
 
   // 如果```出现奇数次，说明有未闭合的代码块
   if (codeBlockMarkers % 2 === 1) {
-    // 根据txt文件的实际情况，匹配代码块模式
     // 匹配最后一个```开始的代码块，支持语言标识
     const lastCodeBlockRegex = /```(\w*)\n?([\s\S]*)$/;
     const match = processedContent.match(lastCodeBlockRegex);
@@ -287,15 +253,7 @@ const handleStreamingMarkdown = (content: string) => {
       const language = match[1] || '';
       const codeContent = match[2] || '';
 
-      console.log('🔧 [代码块修复] 发现不完整代码块:', {
-        language: language || '无语言标识',
-        codeContent: codeContent.substring(0, 50) + '...',
-        codeLength: codeContent.length,
-        needsClosing: true
-      });
-
       // 对于流式输出，确保代码块格式正确
-      // 关键：确保代码块前后都有空行，这样marked.js才能正确识别
       const beforeCodeBlock = processedContent.substring(0, match.index);
 
       // 确保代码块前有空行
@@ -309,34 +267,21 @@ const handleStreamingMarkdown = (content: string) => {
       }
 
       // 构建完整的代码块，确保格式正确
-      const result = `${processedBefore}\`\`\`${language}\n${codeContent}\n\`\`\`\n`;
-
-      console.log('🔨 [代码块修复] 添加临时结尾标记:', {
-        beforeLength: beforeCodeBlock.length,
-        afterLength: result.length,
-        addedClosing: true,
-        hasProperSpacing: true,
-        usedProcessedContent: true
-      });
-
-      return result;
+      return `${processedBefore}\`\`\`${language}\n${codeContent}\n\`\`\`\n`;
     }
 
-    // 检查是否有单独的```开头但没有内容（如txt文件中的情况）
+    // 检查是否有单独的```开头但没有内容
     if (processedContent.endsWith('```') || processedContent.match(/```\w*\s*$/)) {
-      console.log('🔧 [代码块修复] 添加空代码块结尾');
       return processedContent + '\n\n```';
     }
 
     // 检查是否有```语言标识但没有换行的情况
     const codeStartMatch = processedContent.match(/```(\w+)$/);
     if (codeStartMatch) {
-      console.log('🔧 [代码块修复] 添加换行和结尾:', codeStartMatch[1]);
       return processedContent + '\n\n```';
     }
   }
 
-  console.log('ℹ️ [无需处理] 直接返回处理后的内容');
   return processedContent;
 };
 
