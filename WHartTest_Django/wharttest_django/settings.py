@@ -134,24 +134,48 @@ WSGI_APPLICATION = 'wharttest_django.wsgi.application'
 #     }
 # else:
 
-# 支持通过环境变量配置数据库路径，用于 Docker 部署
-DATABASE_PATH = os.environ.get('DATABASE_PATH')
-if DATABASE_PATH:
-    # 使用环境变量指定的路径（Docker部署）
+# 数据库配置
+# 支持通过环境变量配置数据库类型和连接参数
+# DATABASE_TYPE: sqlite (默认) 或 postgres
+# DATABASE_PATH: SQLite 文件路径（仅 sqlite 模式）
+# POSTGRES_*: PostgreSQL 连接参数（仅 postgres 模式）
+
+DATABASE_TYPE = os.environ.get('DATABASE_TYPE', 'postgres')
+
+if DATABASE_TYPE == 'postgres':
+    # PostgreSQL 配置
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': DATABASE_PATH,
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('POSTGRES_DB', 'wharttest'),
+            'USER': os.environ.get('POSTGRES_USER', 'postgres'),
+            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'postgres'),
+            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+            'PORT': os.environ.get('POSTGRES_PORT', '8919'),
+            'OPTIONS': {
+                'connect_timeout': 10,
+            },
         }
     }
 else:
-    # 使用默认路径（本地开发）
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+    # SQLite 配置（默认，用于本地开发）
+    DATABASE_PATH = os.environ.get('DATABASE_PATH')
+    if DATABASE_PATH:
+        # 使用环境变量指定的路径（Docker部署）
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': DATABASE_PATH,
+            }
         }
-    }
+    else:
+        # 使用默认路径（本地开发）
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 
 
 # Password validation

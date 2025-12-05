@@ -2,8 +2,33 @@
 # 使用方式: docker-compose -f "docker-compose copy.yml" up -d --build
 #
 # 此配置文件会从本地源代码构建所有镜像，适合开发调试使用
+#
+# 数据库配置:
+# - 默认使用 PostgreSQL（生产环境推荐）
+# - 如需使用 SQLite（本地开发），请设置环境变量 DATABASE_TYPE=sqlite 并注释掉 postgres 服务
 
 services:
+  # PostgreSQL 数据库服务（生产环境默认启用）
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:16-alpine
+    container_name: wharttest-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-wharttest}
+    ports:
+      - "8919:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - wharttest-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Redis 服务 - Celery的broker和backend
   redis:
     # 当前使用 DaoCloud 镜像加速（国内最稳定的公共镜像源之一）
@@ -41,7 +66,19 @@ services:
       - ./data:/app/data
       - backend-static:/app/static
     environment:
+      # 数据库配置
+      # 默认使用 PostgreSQL（生产环境推荐）
+      # 如需使用 SQLite（本地开发），请设置 DATABASE_TYPE=sqlite
+      - DATABASE_TYPE=${DATABASE_TYPE:-postgres}
+      # SQLite 配置（DATABASE_TYPE=sqlite 时使用）
       - DATABASE_PATH=/app/data/db.sqlite3
+      # PostgreSQL 配置（DATABASE_TYPE=postgres 时使用）
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-wharttest}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      # 其他配置
       - MEDIA_ROOT=/app/data/media
       - DJANGO_DEBUG=True
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-django-insecure-change-this-in-production}
@@ -58,6 +95,8 @@ services:
       # Qdrant向量数据库
       - QDRANT_URL=http://qdrant:6333
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       qdrant:
@@ -192,6 +231,7 @@ networks:
 volumes:
   backend-static:
   redis-data:
+  postgres-data:
   celery-beat-schedule:
   bge-m3-data:
   qdrant-data:

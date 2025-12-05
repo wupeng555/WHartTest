@@ -15,7 +15,6 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from asgiref.sync import sync_to_async
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from langgraph_integration.models import LLMConfig, ChatSession
 from projects.models import Project, ProjectMember
@@ -25,6 +24,7 @@ from .serializers import OrchestratorTaskSerializer
 from .graph import create_orchestrator_graph, OrchestratorState
 from .context_compression import CompressionSettings
 from langgraph_integration.views import create_llm_instance, create_sse_data
+from wharttest_django.checkpointer import get_async_checkpointer
 
 logger = logging.getLogger(__name__)
 
@@ -184,8 +184,7 @@ class OrchestratorStreamAPIView(View):
                 logger.info(f"OrchestratorStream: Using default Brain prompt")
             
             # 4. 创建checkpointer和StateGraph（传递MCP工具和project_id）
-            db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
-            async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
+            async with get_async_checkpointer() as checkpointer:
                 graph = create_orchestrator_graph(
                     llm,
                     checkpointer,

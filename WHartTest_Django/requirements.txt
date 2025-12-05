@@ -82,6 +82,17 @@ langsmith==0.3.45
 # https://github.com/langchain-ai/langgraph/blob/main/libs/checkpoint-sqlite/LICENSE
 langgraph-checkpoint-sqlite==2.0.10
 
+# LangGraph PostgreSQL检查点 - MIT许可证
+# https://github.com/langchain-ai/langgraph/blob/main/libs/checkpoint-postgres/LICENSE
+langgraph-checkpoint-postgres==2.0.17
+
+# PostgreSQL数据库驱动 - LGPL许可证
+# psycopg2-binary: Django ORM 使用
+# psycopg[binary]: langgraph-checkpoint-postgres 使用
+# https://github.com/psycopg/psycopg2/blob/master/LICENSE
+psycopg2-binary==2.9.10
+psycopg[binary]==3.3.1
+
 # LangChain MCP适配器 - MIT许可证 (当前版本: 0.1.9)
 # https://github.com/langchain-ai/langchain-mcp-adapters/blob/main/LICENSE
 langchain-mcp-adapters==0.1.9

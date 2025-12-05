@@ -34,20 +34,18 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages # Correct import for add_messages
-from langgraph.checkpoint.sqlite import SqliteSaver # For sync operations in ChatHistoryAPIView
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver # Use Async version for async views
 from langgraph.prebuilt import create_react_agent # For agent with tools
-# from langgraph.checkpoint.memory import InMemorySaver # Remove InMemorySaver import if no longer globally needed
 import os
 import uuid # Import uuid module
 import copy  # For deep copying checkpoint data
 # Knowledge base integration
 from knowledge.langgraph_integration import KnowledgeRAGService, ConversationalRAGService, LangGraphKnowledgeIntegration
 from knowledge.models import KnowledgeBase
-import sqlite3 # Import sqlite3 module
 from django.conf import settings
 import logging # Import logging
 from asgiref.sync import sync_to_async # For async operations in sync context
+# 统一的 Checkpointer 工厂
+from wharttest_django.checkpointer import get_async_checkpointer, get_sync_checkpointer, delete_checkpoints_by_thread_id, delete_checkpoints_batch, check_history_exists, get_thread_ids_by_prefix
 import json # For JSON serialization in streaming
 import asyncio # For async operations
 
@@ -471,8 +469,7 @@ class ChatAPIView(APIView):
             llm = create_llm_instance(active_config, temperature=0.7)
             logger.info(f"ChatAPIView: Initialized LLM with provider auto-detection")
 
-            db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
-            async with AsyncSqliteSaver.from_conn_string(db_path) as actual_memory_checkpointer: # Use async with and AsyncSqliteSaver
+            async with get_async_checkpointer() as actual_memory_checkpointer:
                 # Load remote MCP tools
                 logger.info("ChatAPIView: Attempting to load remote MCP tools.")
                 mcp_tools_list = []
@@ -629,7 +626,7 @@ class ChatAPIView(APIView):
                 if effective_prompt:
                     try:
                         # 尝试获取当前会话的历史消息
-                        with SqliteSaver.from_conn_string(db_path) as memory:
+                        with get_sync_checkpointer() as memory:
                             checkpoint_generator = memory.list(config={"configurable": {"thread_id": thread_id}})
                             checkpoint_tuples_list = list(checkpoint_generator)
 
@@ -848,35 +845,21 @@ class ChatHistoryAPIView(APIView):
         thread_id_parts = [str(request.user.id), str(project_id), str(session_id)]
         thread_id = "_".join(thread_id_parts)
 
-        db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
         history_messages = []
 
         try:
-            # 首先尝试直接查询数据库以检查是否有数据
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-
-            # 检查是否有对应的thread_id记录
-            cursor.execute("SELECT COUNT(*) FROM checkpoints WHERE thread_id = ?", (thread_id,))
-            checkpoint_count = cursor.fetchone()[0]
-            logger.info(f"ChatHistoryAPIView: Found {checkpoint_count} checkpoints in database for thread_id: {thread_id}")
-
-            if checkpoint_count == 0:
-                # 如果没有找到记录，检查所有的thread_id
-                cursor.execute("SELECT DISTINCT thread_id FROM checkpoints LIMIT 10")
-                all_threads = cursor.fetchall()
-                logger.info(f"ChatHistoryAPIView: Available thread_ids in database: {[t[0] for t in all_threads]}")
-
-            conn.close()
-
-            # 使用SqliteSaver读取数据
-            with SqliteSaver.from_conn_string(db_path) as memory:
-                # Fetch all checkpoints for the thread
-                # The list method returns CheckpointTuple, we need the 'checkpoint' attribute
+            # 使用统一的 Checkpointer 读取数据
+            from wharttest_django.checkpointer import get_database_type, get_db_connection_string
+            db_type = get_database_type()
+            conn_str = get_db_connection_string()
+            logger.warning(f"ChatHistoryAPIView: DEBUG - database_type={db_type}, connection={conn_str}")
+            
+            with get_sync_checkpointer() as memory:
+                logger.warning(f"ChatHistoryAPIView: DEBUG - Checkpointer type={type(memory).__name__}")
                 checkpoint_generator = memory.list(config={"configurable": {"thread_id": thread_id}})
-                checkpoint_tuples_list = list(checkpoint_generator) # Convert generator to list
+                checkpoint_tuples_list = list(checkpoint_generator)
 
-                logger.info(f"ChatHistoryAPIView: SqliteSaver found {len(checkpoint_tuples_list)} checkpoints for thread_id: {thread_id}")
+                logger.info(f"ChatHistoryAPIView: Found {len(checkpoint_tuples_list)} checkpoints for thread_id: {thread_id}")
 
                 if checkpoint_tuples_list: # Check if the list is not empty
                     # 构建消息到时间戳的映射
@@ -903,9 +886,13 @@ class ChatHistoryAPIView(APIView):
 
                     # 获取最新checkpoint的消息列表
                     latest_checkpoint_tuple = checkpoint_tuples_list[0]
+                    logger.info(f"ChatHistoryAPIView: latest_checkpoint_tuple type={type(latest_checkpoint_tuple).__name__}")
                     if latest_checkpoint_tuple and hasattr(latest_checkpoint_tuple, 'checkpoint'):
                         checkpoint_data = latest_checkpoint_tuple.checkpoint
-                        logger.info(f"ChatHistoryAPIView: Processing checkpoint with keys: {list(checkpoint_data.keys()) if checkpoint_data else 'None'}")
+                        logger.info(f"ChatHistoryAPIView: checkpoint_data type={type(checkpoint_data).__name__}, keys={list(checkpoint_data.keys()) if isinstance(checkpoint_data, dict) else 'N/A'}")
+                        if isinstance(checkpoint_data, dict) and 'channel_values' in checkpoint_data:
+                            channel_values = checkpoint_data['channel_values']
+                            logger.info(f"ChatHistoryAPIView: channel_values keys={list(channel_values.keys()) if isinstance(channel_values, dict) else 'N/A'}")
 
                         if checkpoint_data and 'channel_values' in checkpoint_data and 'messages' in checkpoint_data['channel_values']:
                             messages = checkpoint_data['channel_values']['messages']
@@ -1145,26 +1132,16 @@ class ChatHistoryAPIView(APIView):
         thread_id_parts = [str(request.user.id), str(project_id), str(session_id)]
         thread_id = "_".join(thread_id_parts)
 
-        db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
-
-        if not os.path.exists(db_path):
+        if not check_history_exists():
             return Response({
-                "status": "success", # Or "error" with 404 if preferred
-                "code": status.HTTP_200_OK, # Or 404
-                "message": "No chat history found to delete (history file does not exist).",
+                "status": "success",
+                "code": status.HTTP_200_OK,
+                "message": "No chat history found to delete (history storage does not exist).",
                 "data": {"thread_id": thread_id, "session_id": session_id, "deleted_count": 0}
             }, status=status.HTTP_200_OK)
 
-        conn = None
         try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-
-            # It's good practice to check how many rows were affected.
-            cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
-            deleted_count = cursor.rowcount # Get the number of rows deleted
-
-            conn.commit()
+            deleted_count = delete_checkpoints_by_thread_id(thread_id)
 
             if deleted_count > 0:
                 message = f"Successfully deleted chat history for session_id: {session_id} (Thread ID: {thread_id}). {deleted_count} records removed."
@@ -1177,25 +1154,12 @@ class ChatHistoryAPIView(APIView):
                 "data": {"thread_id": thread_id, "session_id": session_id, "deleted_count": deleted_count}
             }, status=status.HTTP_200_OK)
 
-        except sqlite3.Error as e:
-            # import logging
-            # logging.exception(f"SQLite error deleting chat history for thread_id {thread_id}: {e}")
+        except Exception as e:
             return Response({
                 "status": "error", "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
                 "message": f"Database error while deleting chat history: {str(e)}", "data": {},
                 "errors": {"database_error": [str(e)]}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception as e:
-            # import logging
-            # logging.exception(f"Unexpected error deleting chat history for thread_id {thread_id}: {e}")
-            return Response({
-                "status": "error", "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": f"An unexpected error occurred: {str(e)}", "data": {},
-                "errors": {"unexpected_error": [str(e)]}
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        finally:
-            if conn:
-                conn.close()
 
 
 class ChatBatchDeleteAPIView(APIView):
@@ -1247,66 +1211,45 @@ class ChatBatchDeleteAPIView(APIView):
                 "errors": {"project_id": ["Permission denied or project not found."]}
             }, status=status.HTTP_403_FORBIDDEN)
 
-        db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
-        
-        if not os.path.exists(db_path):
+        if not check_history_exists():
             return Response({
                 "status": "success",
                 "code": status.HTTP_200_OK,
-                "message": "No chat history found to delete (history file does not exist).",
+                "message": "No chat history found to delete (history storage does not exist).",
                 "data": {"deleted_count": 0, "failed_sessions": []}
             }, status=status.HTTP_200_OK)
 
-        conn = None
         total_deleted = 0
         failed_sessions = []
         
         try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-
+            # 构建所有 thread_ids
+            thread_ids = []
+            for session_id in session_ids:
+                thread_id_parts = [str(request.user.id), str(project_id), str(session_id)]
+                thread_ids.append("_".join(thread_id_parts))
+            
+            # 批量删除 checkpoints
+            total_deleted = delete_checkpoints_batch(thread_ids)
+            
+            # 删除 Django 中的 ChatSession 记录
             for session_id in session_ids:
                 try:
-                    # 构建thread_id
-                    thread_id_parts = [str(request.user.id), str(project_id), str(session_id)]
-                    thread_id = "_".join(thread_id_parts)
-
-                    # 删除对应的checkpoints
-                    cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
-                    deleted_count = cursor.rowcount
-                    
-                    if deleted_count > 0:
-                        total_deleted += deleted_count
-                        logger.info(f"Deleted {deleted_count} records for session_id: {session_id}")
-                    else:
-                        logger.warning(f"No records found for session_id: {session_id}")
-                        failed_sessions.append({
-                            "session_id": session_id,
-                            "reason": "No records found"
-                        })
-                    
-                    # 同时删除Django中的ChatSession记录
-                    try:
-                        ChatSession.objects.filter(
-                            session_id=session_id,
-                            user=request.user,
-                            project=project
-                        ).delete()
-                    except Exception as e:
-                        logger.warning(f"Failed to delete ChatSession for {session_id}: {e}")
-                        
+                    ChatSession.objects.filter(
+                        session_id=session_id,
+                        user=request.user,
+                        project=project
+                    ).delete()
                 except Exception as e:
-                    logger.error(f"Error deleting session {session_id}: {e}")
+                    logger.warning(f"Failed to delete ChatSession for {session_id}: {e}")
                     failed_sessions.append({
                         "session_id": session_id,
                         "reason": str(e)
                     })
 
-            conn.commit()
-
             message = f"Successfully deleted {total_deleted} checkpoint records from {len(session_ids)} sessions."
             if failed_sessions:
-                message += f" {len(failed_sessions)} sessions failed or had no records."
+                message += f" {len(failed_sessions)} sessions had issues with Django model deletion."
 
             return Response({
                 "status": "success", "code": status.HTTP_200_OK,
@@ -1318,23 +1261,13 @@ class ChatBatchDeleteAPIView(APIView):
                 }
             }, status=status.HTTP_200_OK)
 
-        except sqlite3.Error as e:
-            logger.error(f"SQLite error during batch delete: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Error during batch delete: {e}", exc_info=True)
             return Response({
                 "status": "error", "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
                 "message": f"Database error while batch deleting chat history: {str(e)}", "data": {},
                 "errors": {"database_error": [str(e)]}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception as e:
-            logger.error(f"Unexpected error during batch delete: {e}", exc_info=True)
-            return Response({
-                "status": "error", "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": f"An unexpected error occurred: {str(e)}", "data": {},
-                "errors": {"unexpected_error": [str(e)]}
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        finally:
-            if conn:
-                conn.close()
 
 
 class UserChatSessionsAPIView(APIView):
@@ -1397,23 +1330,17 @@ class UserChatSessionsAPIView(APIView):
                 'created_at': s['created_at'].isoformat() if s['created_at'] else None,
             })
         
-        # 回退：检查sqlite中是否有Django模型没记录的会话
-        db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
-        if os.path.exists(db_path):
+        # 回退：检查checkpoints中是否有Django模型没记录的会话
+        if check_history_exists():
             try:
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
                 thread_id_prefix = f"{user_id}_{project_id}_"
-                cursor.execute("SELECT DISTINCT thread_id FROM checkpoints WHERE thread_id LIKE ?", (thread_id_prefix + '%',))
-                rows = cursor.fetchall()
-                conn.close()
+                thread_ids = get_thread_ids_by_prefix(thread_id_prefix)
                 
-                for row in rows:
-                    full_thread_id = row[0]
+                for full_thread_id in thread_ids:
                     if full_thread_id.startswith(thread_id_prefix):
                         session_id_part = full_thread_id[len(thread_id_prefix):]
                         if session_id_part and session_id_part not in django_session_ids:
-                            # sqlite有但Django没有的会话，添加到列表
+                            # checkpoints有但Django没有的会话，添加到列表
                             sessions_list.append({
                                 'id': session_id_part,
                                 'title': f'会话 {session_id_part[:8]}...',
@@ -1421,7 +1348,7 @@ class UserChatSessionsAPIView(APIView):
                                 'created_at': None,
                             })
             except Exception as e:
-                logger.warning(f"UserChatSessionsAPIView: Failed to check sqlite for additional sessions: {e}")
+                logger.warning(f"UserChatSessionsAPIView: Failed to check checkpoints for additional sessions: {e}")
 
         return Response({
             "status": "success", "code": status.HTTP_200_OK,
@@ -1508,8 +1435,7 @@ class ChatStreamAPIView(View):
             llm = create_llm_instance(active_config, temperature=0.7)
             logger.info(f"ChatStreamAPIView: Initialized LLM with provider auto-detection")
 
-            db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
-            async with AsyncSqliteSaver.from_conn_string(db_path) as actual_memory_checkpointer:
+            async with get_async_checkpointer() as actual_memory_checkpointer:
                 # 加载远程MCP工具
                 logger.info("ChatStreamAPIView: Attempting to load remote MCP tools.")
                 mcp_tools_list = []

@@ -456,7 +456,9 @@ const loadChatHistory = async () => {
       if (response.data.context_token_count !== undefined) {
         const tokenCount = response.data.context_token_count || 0;
         const limit = response.data.context_limit || 128000;
+        // 同时设置两个缓存，确保普通聊天和Brain模式都能显示
         latestContextUsage.value[response.data.session_id] = { tokenCount, limit };
+        latestOrchestratorContextUsage.value[response.data.session_id] = { tokenCount, limit };
         console.log(`🔄 恢复会话Token使用: ${tokenCount}/${limit}`);
       }
 
@@ -837,6 +839,16 @@ const switchSession = async (id: string) => {
     const response = await getChatHistory(id, projectStore.currentProjectId);
 
     if (response.status === 'success') {
+      // 🆕 恢复该会话的Token使用信息
+      if (response.data.context_token_count !== undefined) {
+        const tokenCount = response.data.context_token_count || 0;
+        const limit = response.data.context_limit || 128000;
+        // 同时设置两个缓存，确保普通聊天和Brain模式都能显示
+        latestContextUsage.value[id] = { tokenCount, limit };
+        latestOrchestratorContextUsage.value[id] = { tokenCount, limit };
+        console.log(`🔄 切换会话时恢复Token使用: ${tokenCount}/${limit}`);
+      }
+
       // 🆕 恢复该会话关联的提示词
       if (response.data.prompt_id !== null && response.data.prompt_id !== undefined) {
         selectedPromptId.value = response.data.prompt_id;

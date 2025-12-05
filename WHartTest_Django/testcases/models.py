@@ -197,7 +197,7 @@ class TestCaseScreenshot(models.Model):
 
     # MCP执行相关信息
     mcp_session_id = models.CharField(_('MCP会话ID'), max_length=255, blank=True, null=True)
-    page_url = models.URLField(_('页面URL'), blank=True, null=True)
+    page_url = models.URLField(_('页面URL'), max_length=2000, blank=True, null=True)
 
     # 上传人信息
     uploader = models.ForeignKey(

@@ -23,9 +23,9 @@ from langchain_core.messages import SystemMessage
 from asgiref.sync import sync_to_async
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage, AnyMessage
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from .context_compression import ConversationCompressor, CompressionSettings
 from requirements.context_limits import context_checker, RESERVED_TOKENS
+from wharttest_django.checkpointer import get_async_checkpointer
 
 from .agent_loop import AgentOrchestrator
 from .models import AgentTask, AgentBlackboard
@@ -104,9 +104,7 @@ class AgentLoopStreamAPIView(View):
         # 构建与 ChatStreamAPIView 相同的 thread_id 格式
         thread_id = f"{user_id}_{project_id}_{session_id}"
         
-        db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
-        
-        async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
+        async with get_async_checkpointer() as checkpointer:
             # 配置必须包含 thread_id 和 checkpoint_ns
             config = {
                 "configurable": {
@@ -117,6 +115,7 @@ class AgentLoopStreamAPIView(View):
             
             # 获取现有的 checkpoint（如果有）
             existing_messages = []
+            current_channel_versions = {}
             try:
                 checkpoint_tuple = await checkpointer.aget(config)
                 if checkpoint_tuple:
@@ -124,6 +123,7 @@ class AgentLoopStreamAPIView(View):
                     if checkpoint_dict and isinstance(checkpoint_dict, dict):
                         channel_values = checkpoint_dict.get("channel_values", {})
                         existing_messages = channel_values.get("messages", [])
+                        current_channel_versions = checkpoint_dict.get("channel_versions", {})
                         logger.info(f"AgentLoopStreamAPI: Found {len(existing_messages)} existing messages")
             except Exception as e:
                 logger.warning(f"AgentLoopStreamAPI: Could not load existing checkpoint: {e}")
@@ -131,12 +131,17 @@ class AgentLoopStreamAPIView(View):
             # 添加新消息
             all_messages = list(existing_messages) + list(messages)
             
+            # 计算新的 channel 版本
+            current_messages_version = current_channel_versions.get("messages")
+            next_messages_version = checkpointer.get_next_version(current_messages_version, None)
+            
             # 创建新的 checkpoint
             import time
             from datetime import datetime
             checkpoint_id = f"checkpoint_{int(time.time() * 1000)}"
-            # 使用 ISO 格式的时间戳字符串，与 LangGraph 原生格式兼容
             ts_str = datetime.utcnow().isoformat() + "Z"
+            
+            new_channel_versions = {"messages": next_messages_version}
             new_checkpoint = {
                 "v": 1,
                 "id": checkpoint_id,
@@ -144,8 +149,8 @@ class AgentLoopStreamAPIView(View):
                 "channel_values": {
                     "messages": all_messages
                 },
-                "channel_versions": {},
-                "versions_seen": {},
+                "channel_versions": new_channel_versions,
+                "versions_seen": {"": {"messages": next_messages_version}},
                 "pending_sends": []
             }
             
@@ -155,7 +160,7 @@ class AgentLoopStreamAPIView(View):
                 "writes": {}
             }
             
-            # 保存 checkpoint - 使用正确的配置格式
+            # 保存 checkpoint
             save_config = {
                 "configurable": {
                     "thread_id": thread_id,
@@ -168,7 +173,7 @@ class AgentLoopStreamAPIView(View):
                 save_config,
                 new_checkpoint,
                 metadata,
-                new_checkpoint.get("channel_versions", {})
+                new_channel_versions
             )
             
             logger.info(f"AgentLoopStreamAPI: Saved {len(messages)} new messages to checkpoint, total: {len(all_messages)}")
@@ -197,13 +202,12 @@ class AgentLoopStreamAPIView(View):
             model_name: 模型名称（用于 Token 计算）
         """
         thread_id = f"{user_id}_{project_id}_{session_id}"
-        db_path = os.path.join(str(settings.BASE_DIR), "chat_history.sqlite")
         
         # 计算触发压缩的阈值（上下文限制的 70%，减去预留空间）
         trigger_threshold = int((context_limit - RESERVED_TOKENS) * 0.7)
 
         try:
-            async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
+            async with get_async_checkpointer() as checkpointer:
                 config = {
                     "configurable": {
                         "thread_id": thread_id,

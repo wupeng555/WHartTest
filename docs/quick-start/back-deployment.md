@@ -2,6 +2,72 @@
 
 本指南将引导您完成 WHartTest 后端服务的生产环境部署。系统已改为使用API方式调用嵌入模型，无需本地下载模型文件。
 
+## 📊 数据库配置
+
+系统支持两种数据库：
+- **PostgreSQL**（默认）：生产环境推荐，支持高并发
+- **SQLite**：适合本地开发和小规模部署
+
+### 使用 PostgreSQL（默认）
+
+1. **安装 PostgreSQL**
+```bash
+# Ubuntu/Debian
+sudo apt install postgresql postgresql-contrib
+
+# 启动服务
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+```
+
+2. **创建数据库和用户**
+```bash
+# 切换到 postgres 用户
+sudo -u postgres psql
+
+# 在 PostgreSQL 中执行
+CREATE DATABASE wharttest;
+CREATE USER wharttest_user WITH PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE wharttest TO wharttest_user;
+\q
+```
+
+3. **配置环境变量**
+```bash
+# 设置数据库类型为 PostgreSQL
+export DATABASE_TYPE=postgres
+export POSTGRES_HOST=localhost
+export POSTGRES_PORT=5432
+export POSTGRES_DB=wharttest
+export POSTGRES_USER=wharttest_user
+export POSTGRES_PASSWORD=your_secure_password
+```
+
+4. **执行数据库迁移**
+```bash
+python manage.py migrate
+```
+
+### 使用 SQLite（本地开发）
+
+如需使用 SQLite，设置环境变量：
+```bash
+# 切换到 SQLite
+export DATABASE_TYPE=sqlite
+# SQLite 数据库文件位置
+export DATABASE_PATH=/path/to/db.sqlite3
+```
+
+### Docker 部署时切换数据库
+
+Docker 默认使用 PostgreSQL。如需使用 SQLite，编辑 `.env` 文件：
+```yaml
+# 使用 SQLite（本地开发）
+DATABASE_TYPE=sqlite
+```
+
+---
+
 ### 🛠️ 后端部署 (以 Ubuntu 为例)
 
 
