@@ -1,5 +1,5 @@
 # 使用 Python 3.11 官方镜像作为基础镜像
-FROM docker.m.daocloud.io/library/python:3.11-slim
+FROM docker.1ms.run/library/python:3.11-slim
 
 # 设置工作目录
 WORKDIR /app
@@ -9,6 +9,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# 配置 apt 国内镜像加速（清华源）
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \

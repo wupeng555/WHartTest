@@ -11,7 +11,7 @@
 services:
   # PostgreSQL 数据库服务（生产环境默认启用）
   postgres:
-    image: docker.m.daocloud.io/library/postgres:16-alpine
+    image: docker.1ms.run/library/postgres:16-alpine
     container_name: wharttest-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -37,7 +37,7 @@ services:
     # - dockerproxy.com/library/redis:7-alpine
     # - docker.1panel.live/library/redis:7-alpine
     # - docker.rainbond.cc/library/redis:7-alpine
-    image: docker.m.daocloud.io/library/redis:7-alpine
+    image: docker.1ms.run/library/redis:7-alpine
     container_name: wharttest-redis
     ports:
       - "8911:6379"
@@ -194,7 +194,7 @@ services:
 
   # Qdrant 向量数据库服务
   qdrant:
-    image: docker.m.daocloud.io/qdrant/qdrant:latest
+    image: docker.1ms.run/qdrant/qdrant:latest
     container_name: wharttest-qdrant
     ports:
       - "8918:6333"  # REST API
@@ -255,7 +255,7 @@ services:
   # Draw.io 自托管服务（图表编辑器）
   drawio:
     # 使用 DaoCloud 镜像加速
-    image: docker.m.daocloud.io/jgraph/drawio:latest
+    image: docker.1ms.run/jgraph/drawio:latest
     container_name: wharttest-drawio
     ports:
       - "8920:8080"
