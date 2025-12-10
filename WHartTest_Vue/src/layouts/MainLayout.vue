@@ -105,6 +105,11 @@
             <a href="#" @click="checkProjectAndNavigate($event, '/langgraph-chat')">LLM对话</a>
           </a-menu-item>
 
+          <a-menu-item key="ai-diagram" v-if="hasLangGraphChatPermission">
+            <template #icon><icon-mind-mapping /></template>
+            <a href="#" @click="checkProjectAndNavigate($event, '/ai-diagram')">AI图表</a>
+          </a-menu-item>
+
           <a-menu-item key="knowledge-management" v-if="hasKnowledgePermission">
             <template #icon><icon-book /></template>
             <a href="#" @click="checkProjectAndNavigate($event, '/knowledge-management')">知识库管理</a>
@@ -240,10 +245,11 @@ const activeMenu = computed(() => {
   if (path.startsWith('/organizations')) return 'organizations';
   if (path.startsWith('/permissions')) return 'permissions';
   if (path.startsWith('/llm-configs')) return 'llm-configs';
-  if (path.startsWith('/langgraph-chat')) return 'langgraph-chat'; // 添加对新路由的识别
-  if (path.startsWith('/knowledge-management')) return 'knowledge-management'; // 添加对知识库管理路由的识别
-  if (path.startsWith('/api-keys')) return 'api-keys'; // 添加对API Key路由的识别
-  if (path.startsWith('/remote-mcp-configs')) return 'remote-mcp-configs'; // 添加对MCP配置路由的识别
+  if (path.startsWith('/langgraph-chat')) return 'langgraph-chat';
+  if (path.startsWith('/ai-diagram')) return 'ai-diagram';
+  if (path.startsWith('/knowledge-management')) return 'knowledge-management';
+  if (path.startsWith('/api-keys')) return 'api-keys';
+  if (path.startsWith('/remote-mcp-configs')) return 'remote-mcp-configs';
   // 其他路由对应的菜单项
   return '';
 });

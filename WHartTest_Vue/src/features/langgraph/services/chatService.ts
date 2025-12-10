@@ -492,7 +492,21 @@ export async function sendChatMessageStream(
             }
           }
 
-          // 处理AI消息(message事件) - 支持 Agent Loop 纯文本和旧 LangGraph 格式
+          // ⭐ 处理真正的流式输出 (type === 'stream') - Agent Loop 逐字流式
+          if (parsed.type === 'stream' && streamSessionId && activeStreams.value[streamSessionId]) {
+            const content = parsed.data;
+            if (content) {
+              activeStreams.value[streamSessionId].content += content;
+            }
+          }
+
+          // ⭐ 流式结束事件
+          if (parsed.type === 'stream_end' && streamSessionId && activeStreams.value[streamSessionId]) {
+            // 流式结束，内容已通过 stream 事件累积
+            // 不需要特殊处理，等待 complete 事件标记完成
+          }
+
+          // 处理AI消息(message事件) - 兼容旧格式（非流式模式）
           if (parsed.type === 'message' && streamSessionId && activeStreams.value[streamSessionId]) {
             const content = parseMessageContent(parsed.data);
             if (content) {

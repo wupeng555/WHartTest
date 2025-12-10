@@ -685,6 +685,10 @@ class AgentLoopStreamAPIView(View):
 
             await refresh_conversation_history_snapshot(force=True)
 
+            # 连续工具失败计数器（防止无效重试浪费步数）
+            consecutive_tool_failures = 0
+            max_consecutive_tool_failures = 3
+            
             step_count = 0
             while step_count < orchestrator.max_steps:
                 step_count += 1
@@ -702,10 +706,126 @@ class AgentLoopStreamAPIView(View):
                 # 构建上下文
                 step_context = orchestrator._build_step_context(blackboard, goal)
 
-                # 执行单步
-                step_result = await orchestrator._execute_step(task, step_context)
+                # ⭐ 使用队列实现真正的流式输出
+                stream_queue = asyncio.Queue()
+                streaming_content = []  # 收集流式内容用于保存
+                
+                async def stream_callback(chunk: str):
+                    """流式回调：将 chunk 放入队列并收集"""
+                    streaming_content.append(chunk)
+                    await stream_queue.put(('chunk', chunk))
+                
+                # 启动后台任务执行 LLM 调用
+                step_task = asyncio.create_task(
+                    orchestrator._execute_step(task, step_context, stream_callback=stream_callback)
+                )
+                
+                # ⭐ 设置步骤整体超时（5分钟）
+                step_timeout = 300  # 秒
+                step_start_time = asyncio.get_event_loop().time()
+                step_timed_out = False
+                
+                # 实时输出流式内容
+                while not step_task.done():
+                    try:
+                        # 检查整体超时
+                        elapsed = asyncio.get_event_loop().time() - step_start_time
+                        if elapsed > step_timeout:
+                            step_timed_out = True
+                            step_task.cancel()
+                            logger.error(f"步骤 {step_count} 执行超时 ({step_timeout}秒)")
+                            yield create_sse_data({
+                                'type': 'error',
+                                'message': f'步骤执行超时（{step_timeout}秒）'
+                            })
+                            break
+                        
+                        # 等待队列数据，设置超时避免阻塞
+                        msg_type, content = await asyncio.wait_for(
+                            stream_queue.get(), 
+                            timeout=0.1
+                        )
+                        if msg_type == 'chunk':
+                            yield create_sse_data({
+                                'type': 'stream',
+                                'data': content
+                            })
+                    except asyncio.TimeoutError:
+                        # 超时后继续检查任务是否完成
+                        continue
+                    except asyncio.CancelledError:
+                        break
+                
+                # 如果超时，更新任务状态并退出
+                if step_timed_out:
+                    # ⭐ 等待任务取消完成
+                    try:
+                        await step_task
+                    except asyncio.CancelledError:
+                        pass
+                    
+                    # 更新任务状态
+                    task.status = 'failed'
+                    task.error_message = f'步骤 {step_count} 执行超时'
+                    task.completed_at = timezone.now()
+                    await orchestrator._save_task(task)
+                    
+                    # ⭐ 保存已收集的流式内容到对话历史
+                    if streaming_content:
+                        partial_response = ''.join(streaming_content)
+                        timeout_metadata = {
+                            "agent": "agent_loop",
+                            "agent_type": "timeout",
+                            "step": step_count,
+                            "max_steps": orchestrator.max_steps,
+                            "sse_event_type": "error"
+                        }
+                        conversation_messages.append(
+                            AIMessage(
+                                content=f"[超时中断] {partial_response}" if partial_response else "[步骤执行超时]",
+                                additional_kwargs={"metadata": timeout_metadata}
+                            )
+                        )
+                        # 保存对话历史
+                        try:
+                            await self._save_chat_history(
+                                request.user.id,
+                                project_id,
+                                session_id,
+                                conversation_messages
+                            )
+                        except Exception as save_err:
+                            logger.warning(f"AgentLoopStreamAPI: Timeout history save failed: {save_err}")
+                    
+                    # 发送错误结束事件
+                    yield create_sse_data({
+                        'type': 'error',
+                        'message': f'步骤执行超时（{step_timeout}秒）',
+                        'step': step_count
+                    })
+                    yield create_sse_data({
+                        'type': 'complete',
+                        'status': 'timeout',
+                        'steps': step_count
+                    })
+                    return
+                
+                # 处理队列中剩余的数据
+                while not stream_queue.empty():
+                    msg_type, content = await stream_queue.get()
+                    if msg_type == 'chunk':
+                        yield create_sse_data({
+                            'type': 'stream',
+                            'data': content
+                        })
+                
+                # 获取执行结果
+                try:
+                    step_result = await step_task
+                except asyncio.CancelledError:
+                    step_result = {'error': '步骤被取消'}
 
-                # 记录并流式输出 AI 响应
+                # 记录并流式输出 AI 响应（完整响应，用于保存历史）
                 ai_response = step_result.get('response')
                 if ai_response:
                     is_final = step_result.get('is_final', False)
@@ -725,9 +845,12 @@ class AgentLoopStreamAPIView(View):
                         AIMessage(content=ai_response, additional_kwargs={"metadata": ai_metadata})
                     )
                     await refresh_conversation_history_snapshot()
+                    
+                    # ⭐ 发送流式结束信号（内容已通过 stream 事件发送）
                     yield create_sse_data({
-                        'type': 'message',
-                        'data': ai_response
+                        'type': 'stream_end',
+                        'step': step_count,
+                        'is_final': is_final
                     })
 
                 # 工具调用信息
@@ -927,14 +1050,14 @@ class AgentLoopStreamAPIView(View):
                     })
                     break
 
-                # 检查错误
-                if step_result.get('error'):
+                # 检查错误：工具调用失败时继续循环让 LLM 重试
+                if step_result.get('error') and not step_result.get('tool_results'):
+                    # 非工具调用错误，直接失败
                     task.status = 'failed'
                     task.error_message = step_result['error']
                     task.completed_at = timezone.now()
                     await orchestrator._save_task(task)
                     
-                    # 错误时确保已有对话历史已保存（通常每步已保存，这里是兜底）
                     logger.info(f"AgentLoopStreamAPI: Task failed at step {step_count}, history already saved")
                     
                     yield create_sse_data({
@@ -942,6 +1065,26 @@ class AgentLoopStreamAPIView(View):
                         'message': step_result['error']
                     })
                     break
+                
+                # 检查工具调用失败计数
+                if step_result.get('error') and step_result.get('tool_results'):
+                    consecutive_tool_failures += 1
+                    logger.warning(f"工具调用失败 ({consecutive_tool_failures}/{max_consecutive_tool_failures}): {step_result['error'][:100]}")
+                    
+                    if consecutive_tool_failures >= max_consecutive_tool_failures:
+                        task.status = 'failed'
+                        task.error_message = f'工具调用连续失败 {consecutive_tool_failures} 次: {step_result["error"]}'
+                        task.completed_at = timezone.now()
+                        await orchestrator._save_task(task)
+                        
+                        yield create_sse_data({
+                            'type': 'error',
+                            'message': task.error_message
+                        })
+                        break
+                else:
+                    # 成功时重置计数器
+                    consecutive_tool_failures = 0
 
                 # 小延迟确保流式效果
                 await asyncio.sleep(0.05)

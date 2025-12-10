@@ -19,6 +19,7 @@ import RemoteMcpConfigManagementView from '@/views/RemoteMcpConfigManagementView
 import RequirementManagementView from '@/features/requirements/views/RequirementManagementView.vue'; // 导入需求管理视图
 import DocumentDetailView from '@/features/requirements/views/DocumentDetailView.vue'; // 导入文档详情视图
 import SpecializedReportView from '@/features/requirements/views/SpecializedReportView.vue'; // 导入专项分析报告视图
+import AiDiagramView from '@/features/diagrams/views/AiDiagramView.vue'; // 导入 AI 图表视图
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -116,6 +117,11 @@ const routes: Array<RouteRecordRaw> = [
         path: 'requirements/:id/report', // 评审报告（支持历史版本切换）
         name: 'ReportDetail',
         component: SpecializedReportView,
+      },
+      {
+        path: 'ai-diagram', // AI 图表生成
+        name: 'AiDiagram',
+        component: AiDiagramView,
       },
       // 其他受保护的子路由可以加在这里
     ]

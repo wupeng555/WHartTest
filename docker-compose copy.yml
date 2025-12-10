@@ -227,6 +227,26 @@ services:
       - wharttest-network
     restart: unless-stopped
 
+  # Draw.io 自托管服务（图表编辑器）
+  drawio:
+    # 使用 DaoCloud 镜像加速
+    image: docker.m.daocloud.io/jgraph/drawio:latest
+    container_name: wharttest-drawio
+    ports:
+      - "0.0.0.0:8920:8080"
+    networks:
+      - wharttest-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
 networks:
   wharttest-network:
     driver: bridge

@@ -9,7 +9,8 @@ export type PromptType =
   | 'feasibility_analysis'
   | 'clarity_analysis'
   | 'test_case_execution'
-  | 'brain_orchestrator';
+  | 'brain_orchestrator'
+  | 'diagram_generation';
 
 /**
  * 提示词类型选项
@@ -23,6 +24,7 @@ export const PROMPT_TYPE_CHOICES = [
   { key: 'clarity_analysis', name: '清晰度分析', isProgramCall: true },
   { key: 'test_case_execution', name: '测试用例执行', isProgramCall: true },
   { key: 'brain_orchestrator', name: '智能规划', isProgramCall: false },
+  { key: 'diagram_generation', name: '图表生成', isProgramCall: true },
 ] as const;
 
 /**

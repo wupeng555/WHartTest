@@ -95,6 +95,10 @@ class AgentOrchestrator:
         
         logger.info(f"AgentOrchestrator: 开始执行任务 {task.id}, 目标: {goal[:100]}")
         
+        # 连续工具失败计数器（防止无效重试浪费步数）
+        consecutive_tool_failures = 0
+        max_consecutive_tool_failures = 3
+        
         try:
             # 2. Agent Loop
             while task.current_step < self.max_steps:
@@ -128,8 +132,10 @@ class AgentOrchestrator:
                         'task_id': task.id
                     }
                 
-                # 2.5 检查是否有错误需要停止
-                if step_result.get('error'):
+                # 2.5 工具调用失败时，继续循环让 LLM 重试
+                # 只有非工具类错误（如连接错误）才终止
+                if step_result.get('error') and not step_result.get('tool_results'):
+                    # 非工具调用错误，直接失败
                     task.status = 'failed'
                     task.error_message = step_result['error']
                     await self._save_task(task)
@@ -140,6 +146,26 @@ class AgentOrchestrator:
                         'steps': task.current_step,
                         'task_id': task.id
                     }
+                
+                # 检查工具调用失败计数
+                if step_result.get('error') and step_result.get('tool_results'):
+                    consecutive_tool_failures += 1
+                    logger.warning(f"工具调用失败 ({consecutive_tool_failures}/{max_consecutive_tool_failures}): {step_result['error'][:100]}")
+                    
+                    if consecutive_tool_failures >= max_consecutive_tool_failures:
+                        task.status = 'failed'
+                        task.error_message = f'工具调用连续失败 {consecutive_tool_failures} 次: {step_result["error"]}'
+                        await self._save_task(task)
+                        
+                        return {
+                            'status': 'failed',
+                            'error': task.error_message,
+                            'steps': task.current_step,
+                            'task_id': task.id
+                        }
+                else:
+                    # 成功时重置计数器
+                    consecutive_tool_failures = 0
             
             # 超过最大步骤
             task.status = 'failed'
@@ -238,11 +264,22 @@ class AgentOrchestrator:
             'context_variables': blackboard.context_variables
         }
     
-    async def _execute_step(self, task: AgentTask, context: Dict) -> Dict[str, Any]:
+    async def _execute_step(
+        self, 
+        task: AgentTask, 
+        context: Dict,
+        stream_callback: callable = None
+    ) -> Dict[str, Any]:
         """
         执行单步
         
         这是一次独立的 AI 调用，上下文不累积
+        
+        Args:
+            task: 任务对象
+            context: 步骤上下文
+            stream_callback: 流式输出回调，签名: async def callback(text: str)
+                            如果提供，则使用流式 LLM 调用
         """
         start_time = time.time()
         
@@ -254,8 +291,11 @@ class AgentOrchestrator:
         ]
         
         try:
-            # 调用 AI
-            response = await self._invoke_llm(messages)
+            # 调用 AI（根据是否提供回调选择流式或非流式）
+            if stream_callback:
+                response = await self._invoke_llm_streaming(messages, on_chunk=stream_callback)
+            else:
+                response = await self._invoke_llm(messages)
             
             duration_ms = int((time.time() - start_time) * 1000)
             
@@ -294,9 +334,230 @@ class AgentOrchestrator:
                 logger.exception("记录步骤失败")
             return {'error': str(e)}
     
-    async def _invoke_llm(self, messages: List) -> Any:
-        """调用 LLM"""
-        return await asyncio.to_thread(self.llm_with_tools.invoke, messages)
+    async def _invoke_llm(self, messages: List, max_retries: int = 3) -> Any:
+        """调用 LLM，支持自动重试
+        
+        Args:
+            messages: 消息列表
+            max_retries: 最大重试次数，默认3次
+        """
+        import httpx
+        import openai
+        
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                return await asyncio.to_thread(self.llm_with_tools.invoke, messages)
+            except (httpx.ConnectError, openai.APIConnectionError) as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2  # 递增等待：2秒、4秒、6秒
+                    logger.warning(f"LLM 连接失败，{wait_time}秒后重试 ({attempt + 1}/{max_retries}): {e}")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(f"LLM 连接失败，已达最大重试次数 ({max_retries}): {e}")
+            except Exception as e:
+                # 非连接错误，直接抛出不重试
+                raise
+        
+        # 所有重试都失败
+        raise last_error
+    
+    async def _invoke_llm_streaming(
+        self, 
+        messages: List, 
+        on_chunk: callable = None,
+        max_retries: int = 3
+    ) -> Any:
+        """流式调用 LLM，支持实时输出和自动重试
+        
+        Args:
+            messages: 消息列表
+            on_chunk: 收到文本 chunk 时的回调函数，签名: async def on_chunk(text: str)
+            max_retries: 最大重试次数，默认3次
+            
+        Returns:
+            合并后的完整 AIMessage 响应
+            
+        注意：
+            - 重试会从头开始，不会发送重置信号给客户端
+            - 如果部分内容已发送后失败，客户端可能收到不完整内容
+        """
+        import httpx
+        import openai
+        from langchain_core.messages import AIMessage
+        
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                # 收集所有 chunks
+                collected_content = []
+                # ⭐ 统一使用数字 index 作为 key 聚合工具调用
+                tool_calls_by_index: Dict[int, Dict] = {}
+                # 记录已使用的最大 index，用于分配新的 index
+                max_used_index = -1
+                
+                # 使用 astream 进行流式调用
+                async for chunk in self.llm_with_tools.astream(messages):
+                    # 处理文本内容 - 规范化为字符串
+                    if hasattr(chunk, 'content') and chunk.content:
+                        content = chunk.content
+                        # 确保是字符串类型
+                        if isinstance(content, str):
+                            collected_content.append(content)
+                            if on_chunk:
+                                await on_chunk(content)
+                        elif isinstance(content, list):
+                            # 多模态内容，提取文本部分
+                            for item in content:
+                                if isinstance(item, dict) and item.get('type') == 'text':
+                                    text = item.get('text', '')
+                                    collected_content.append(text)
+                                    if on_chunk:
+                                        await on_chunk(text)
+                                elif isinstance(item, str):
+                                    collected_content.append(item)
+                                    if on_chunk:
+                                        await on_chunk(item)
+                    
+                    # ⭐ 处理增量传输的工具调用 chunks（按 index 聚合）
+                    # 先处理 chunks，这样可以正确记录已使用的 index
+                    if hasattr(chunk, 'tool_call_chunks') and chunk.tool_call_chunks:
+                        for tc_chunk in chunk.tool_call_chunks:
+                            # tc_chunk 可能是对象或字典
+                            if hasattr(tc_chunk, 'index'):
+                                tc_index = tc_chunk.index if tc_chunk.index is not None else 0
+                                tc_id = tc_chunk.id if hasattr(tc_chunk, 'id') and tc_chunk.id else ''
+                                tc_name = tc_chunk.name if hasattr(tc_chunk, 'name') and tc_chunk.name else ''
+                                tc_args = tc_chunk.args if hasattr(tc_chunk, 'args') and tc_chunk.args else ''
+                            else:
+                                tc_index = tc_chunk.get('index', 0) or 0
+                                tc_id = tc_chunk.get('id', '') or ''
+                                tc_name = tc_chunk.get('name', '') or ''
+                                tc_args = tc_chunk.get('args', '') or ''
+                            
+                            # 更新最大使用的 index
+                            max_used_index = max(max_used_index, tc_index)
+                            
+                            # 按 index 聚合
+                            if tc_index not in tool_calls_by_index:
+                                tool_calls_by_index[tc_index] = {
+                                    'id': '',
+                                    'name': '',
+                                    'args': ''
+                                }
+                            
+                            # 累积更新
+                            if tc_id:
+                                tool_calls_by_index[tc_index]['id'] = tc_id
+                            if tc_name:
+                                tool_calls_by_index[tc_index]['name'] = tc_name
+                            if tc_args:
+                                # ⭐ 确保 tc_args 是字符串
+                                tc_args_str = tc_args if isinstance(tc_args, str) else json.dumps(tc_args, ensure_ascii=False)
+                                current_args = tool_calls_by_index[tc_index]['args']
+                                if isinstance(current_args, str):
+                                    tool_calls_by_index[tc_index]['args'] = current_args + tc_args_str
+                                else:
+                                    # 如果之前存的是 dict（来自完整 tool_calls），转为 JSON 再拼接
+                                    tool_calls_by_index[tc_index]['args'] = json.dumps(current_args, ensure_ascii=False) + tc_args_str
+                    
+                    # ⭐ 处理完整的工具调用（某些模型直接返回完整 tool_calls）
+                    if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                        for tc in chunk.tool_calls:
+                            # 可能是对象或字典
+                            if hasattr(tc, 'id'):
+                                tc_id = tc.id
+                                tc_name = tc.name if hasattr(tc, 'name') else ''
+                                tc_args = tc.args if hasattr(tc, 'args') else {}
+                            else:
+                                tc_id = tc.get('id', '')
+                                tc_name = tc.get('name', '')
+                                tc_args = tc.get('args', {})
+                            
+                            # 检查是否已存在相同 id 的工具调用（避免重复）
+                            existing_index = None
+                            for idx, existing_tc in tool_calls_by_index.items():
+                                if existing_tc.get('id') == tc_id and tc_id:
+                                    existing_index = idx
+                                    break
+                            
+                            if existing_index is not None:
+                                # 更新已存在的（完整覆盖）
+                                tool_calls_by_index[existing_index] = {
+                                    'id': tc_id,
+                                    'name': tc_name,
+                                    'args': tc_args if isinstance(tc_args, dict) else {}
+                                }
+                            else:
+                                # ⭐ 新增时使用 max_used_index + 1，避免覆盖已有的 chunks
+                                max_used_index += 1
+                                tool_calls_by_index[max_used_index] = {
+                                    'id': tc_id,
+                                    'name': tc_name,
+                                    'args': tc_args if isinstance(tc_args, dict) else {}
+                                }
+                
+                # 合并为完整响应
+                full_content = ''.join(collected_content)
+                
+                # 解析工具调用参数
+                final_tool_calls = []
+                parse_errors = []  # 收集解析错误
+                for key in sorted(tool_calls_by_index.keys()):
+                    tc = tool_calls_by_index[key]
+                    args = tc.get('args', {})
+                    tool_name = tc.get('name', '')
+                    # 如果 args 是字符串，尝试解析为 JSON
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args) if args else {}
+                        except json.JSONDecodeError:
+                            # 尝试清理常见的 JSON 格式问题
+                            cleaned_args = args.strip()
+                            # 移除开头的多余 {} 
+                            while cleaned_args.startswith('{}'):
+                                cleaned_args = cleaned_args[2:].strip()
+                            try:
+                                args = json.loads(cleaned_args) if cleaned_args else {}
+                            except json.JSONDecodeError:
+                                logger.warning(f"工具调用参数解析失败: {args[:100] if args else ''}")
+                                # 记录解析错误，但不塞入 args
+                                parse_errors.append(f"工具 {tool_name} 参数解析失败: {args[:200] if args else '空'}")
+                                args = {}
+                    
+                    # 只添加有效的工具调用（有工具名）
+                    if tc.get('name'):
+                        final_tool_calls.append({
+                            'id': tc.get('id', ''),
+                            'name': tc.get('name', ''),
+                            'args': args
+                        })
+                
+                # 构建兼容的响应对象
+                # 如果有解析错误，将错误信息加入 content，让 LLM 能看到
+                if parse_errors:
+                    error_msg = '\n[系统提示: ' + '; '.join(parse_errors) + ']'
+                    full_content += error_msg
+                
+                response = AIMessage(content=full_content)
+                if final_tool_calls:
+                    response.tool_calls = final_tool_calls
+                
+                return response
+                
+            except (httpx.ConnectError, openai.APIConnectionError) as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2
+                    logger.warning(f"LLM 流式连接失败，{wait_time}秒后重试 ({attempt + 1}/{max_retries}): {e}")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(f"LLM 流式连接失败，已达最大重试次数 ({max_retries}): {e}")
+            except Exception as e:
+                raise
+        
+        raise last_error
     
     async def _parse_ai_response(self, response) -> Dict[str, Any]:
         """解析 AI 响应"""
@@ -415,7 +676,11 @@ class AgentOrchestrator:
         summaries = []
         
         for result in tool_results:
-            tool_name = result.get('tool_name', 'unknown')
+            tool_name = result.get('tool_name', '')
+            
+            # 跳过没有工具名的结果（通常是解析错误）
+            if not tool_name:
+                continue
             
             if result.get('error'):
                 summaries.append(f"{tool_name}: 失败 - {result['error']}")

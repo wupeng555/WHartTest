@@ -16,6 +16,7 @@ class PromptType(models.TextChoices):
     # 其他类型
     TEST_CASE_EXECUTION = 'test_case_execution', _('测试用例执行')
     BRAIN_ORCHESTRATOR = 'brain_orchestrator', _('智能规划')
+    DIAGRAM_GENERATION = 'diagram_generation', _('图表生成')
 
 class UserPrompt(models.Model):
     """
@@ -30,6 +31,7 @@ class UserPrompt(models.Model):
         PromptType.FEASIBILITY_ANALYSIS,
         PromptType.CLARITY_ANALYSIS,
         PromptType.TEST_CASE_EXECUTION,
+        PromptType.DIAGRAM_GENERATION,
     ]
 
 
