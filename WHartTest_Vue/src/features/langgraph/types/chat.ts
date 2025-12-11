@@ -21,7 +21,6 @@ export interface ChatRequest {
   // Playwright 脚本生成参数
   generate_playwright_script?: boolean; // 是否在任务完成后自动生成 Playwright 脚本
   test_case_id?: number; // 关联的测试用例ID，生成脚本时必需
-  use_pytest?: boolean; // 生成 pytest 格式还是简单格式，默认 true
 }
 
 /**

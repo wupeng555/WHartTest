@@ -664,6 +664,7 @@ if __name__ == "__main__":
 - **每个步骤后必须截图**，截图文件名格式: `step{N}_{action}.png`
 - **每个步骤后必须 print**，输出格式: `步骤{N}: {描述}成功`
 - **关键操作必须有断言**，验证操作的预期结果
+- **生成后必须执行脚本，验证脚本的可执行性
 """
                 effective_prompt = (effective_prompt or '') + script_instruction
 

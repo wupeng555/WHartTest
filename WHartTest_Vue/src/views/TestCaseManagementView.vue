@@ -324,7 +324,7 @@ const handleExecuteTestCase = (testCase: TestCase) => {
   isExecuteModalVisible.value = true;
 };
 
-const handleExecuteConfirm = (options: { generatePlaywrightScript: boolean; usePytest: boolean }) => {
+const handleExecuteConfirm = (options: { generatePlaywrightScript: boolean }) => {
   const testCase = pendingExecuteTestCase.value;
   if (!testCase || !currentProjectId.value) {
     return;
@@ -340,7 +340,7 @@ const handleExecuteConfirm = (options: { generatePlaywrightScript: boolean; useP
 请调用MCP工具完成以下任务：
 1. 读取该测试用例所属项目（ID：${currentProjectId.value}）及模块，定位完整的测试用例定义。
 2. 调用工具逐步执行测试用例，并验证每一步的断言。
-3. 每一步执行后截图，并将截图上传回该测试用例。
+3. 每一步执行后截图，并将截图立马上传用例，禁止执行完，再重新执行上传。
 4. 执行结束后告知用户本次测试是否通过，并总结关键截图链接。
 
 附加信息：
@@ -357,7 +357,6 @@ const handleExecuteConfirm = (options: { generatePlaywrightScript: boolean; useP
     // Playwright 脚本生成参数
     generate_playwright_script: options.generatePlaywrightScript,
     test_case_id: options.generatePlaywrightScript ? testCase.id : undefined,
-    use_pytest: options.usePytest,
   };
 
   const notificationContent = options.generatePlaywrightScript

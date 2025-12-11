@@ -34,26 +34,6 @@
             </span>
           </a-checkbox>
         </a-form-item>
-
-        <a-form-item v-if="formData.generatePlaywrightScript">
-          <template #label>
-            <span>脚本格式</span>
-          </template>
-          <a-radio-group v-model="formData.usePytest" direction="vertical">
-            <a-radio :value="true">
-              <div class="radio-option">
-                <span class="radio-title">Pytest 格式</span>
-                <span class="radio-desc">生成标准的 pytest 测试类，适合集成到 CI/CD 流程</span>
-              </div>
-            </a-radio>
-            <a-radio :value="false">
-              <div class="radio-option">
-                <span class="radio-title">简单脚本</span>
-                <span class="radio-desc">生成独立的 Python 脚本，可直接运行</span>
-              </div>
-            </a-radio>
-          </a-radio-group>
-        </a-form-item>
       </a-form>
     </div>
   </a-modal>
@@ -71,7 +51,7 @@ interface Props {
 
 interface Emits {
   (e: 'update:visible', value: boolean): void;
-  (e: 'confirm', options: { generatePlaywrightScript: boolean; usePytest: boolean }): void;
+  (e: 'confirm', options: { generatePlaywrightScript: boolean }): void;
 }
 
 const props = defineProps<Props>();
@@ -84,7 +64,6 @@ const internalVisible = computed({
 
 const formData = ref({
   generatePlaywrightScript: false,
-  usePytest: true,
 });
 
 // 重置表单
@@ -94,7 +73,6 @@ watch(
     if (val) {
       formData.value = {
         generatePlaywrightScript: false,
-        usePytest: true,
       };
     }
   }
@@ -113,7 +91,6 @@ const getLevelColor = (level?: string) => {
 const handleConfirm = () => {
   emit('confirm', {
     generatePlaywrightScript: formData.value.generatePlaywrightScript,
-    usePytest: formData.value.usePytest,
   });
   internalVisible.value = false;
 };
@@ -155,25 +132,6 @@ const handleCancel = () => {
     color: var(--color-text-3);
     margin-top: 4px;
     font-weight: 400;
-  }
-
-  .radio-option {
-    display: flex;
-    flex-direction: column;
-
-    .radio-title {
-      font-weight: 500;
-    }
-
-    .radio-desc {
-      font-size: 12px;
-      color: var(--color-text-3);
-      margin-top: 2px;
-    }
-  }
-
-  :deep(.arco-radio) {
-    margin-bottom: 8px;
   }
 }
 </style>
