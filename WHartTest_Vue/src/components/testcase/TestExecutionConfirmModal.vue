@@ -23,7 +23,8 @@
           {{ suite?.description || '-' }}
         </a-descriptions-item>
         <a-descriptions-item label="用例数量">
-          <a-tag color="blue">{{ suite?.testcase_count }} 个用例</a-tag>
+          <a-tag color="blue">{{ suite?.testcase_count || 0 }} 个用例</a-tag>
+          <a-tag color="green" style="margin-left: 8px;">{{ suite?.script_count || 0 }} 个脚本</a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="预计耗时">
           <a-tag color="orange">约 {{ estimatedTime }} 分钟</a-tag>
@@ -74,10 +75,11 @@ const modalVisible = computed({
 
 const loading = ref(false);
 
-// 预估执行时间 (每个用例约30秒)
+// 预估执行时间 (每个用例/脚本约30秒)
 const estimatedTime = computed(() => {
   if (!props.suite) return 0;
-  const minutes = Math.ceil((props.suite.testcase_count * 30) / 60);
+  const totalCount = (props.suite.testcase_count || 0) + (props.suite.script_count || 0);
+  const minutes = Math.ceil((totalCount * 30) / 60);
   return minutes;
 });
 

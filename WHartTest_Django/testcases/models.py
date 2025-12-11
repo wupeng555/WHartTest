@@ -244,7 +244,15 @@ class TestSuite(models.Model):
     testcases = models.ManyToManyField(
         TestCase,
         related_name='test_suites',
-        verbose_name=_('测试用例')
+        verbose_name=_('测试用例'),
+        blank=True
+    )
+    automation_scripts = models.ManyToManyField(
+        'AutomationScript',
+        related_name='test_suites',
+        verbose_name=_('自动化脚本'),
+        blank=True,
+        help_text=_('关联的 Playwright 自动化测试脚本')
     )
     creator = models.ForeignKey(
         User,
@@ -257,7 +265,7 @@ class TestSuite(models.Model):
     max_concurrent_tasks = models.PositiveSmallIntegerField(
         _('最大并发数'),
         default=1,
-        help_text=_('同时执行的测试用例数量，1表示串行执行，建议值2-5')
+        help_text=_('同时执行的测试用例/脚本数量，1表示串行执行，建议值2-5')
     )
     created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)
@@ -526,8 +534,8 @@ class ScriptExecution(models.Model):
     STATUS_CHOICES = [
         ('pending', _('等待中')),
         ('running', _('执行中')),
-        ('passed', _('通过')),
-        ('failed', _('失败')),
+        ('pass', _('通过')),
+        ('fail', _('失败')),
         ('error', _('错误')),
         ('cancelled', _('已取消')),
     ]
@@ -537,6 +545,16 @@ class ScriptExecution(models.Model):
         on_delete=models.CASCADE,
         related_name='executions',
         verbose_name=_('执行的脚本')
+    )
+    
+    # 关联到测试套件执行记录（可选，因为脚本也可以单独执行）
+    test_execution = models.ForeignKey(
+        TestExecution,
+        on_delete=models.CASCADE,
+        related_name='script_results',
+        verbose_name=_('测试执行'),
+        null=True,
+        blank=True
     )
     
     status = models.CharField(

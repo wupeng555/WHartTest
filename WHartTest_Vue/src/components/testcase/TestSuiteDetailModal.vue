@@ -2,7 +2,7 @@
   <a-modal
     v-model:visible="modalVisible"
     title="测试套件详情"
-    width="800px"
+    width="900px"
     :footer="false"
     @cancel="handleClose"
   >
@@ -21,8 +21,11 @@
             <a-descriptions-item label="创建者">
               {{ suiteDetail.creator_detail?.username || '-' }}
             </a-descriptions-item>
-            <a-descriptions-item label="用例数量">
-              <a-tag color="blue">{{ suiteDetail.testcase_count }} 个</a-tag>
+            <a-descriptions-item label="测试内容">
+              <a-space :size="4">
+                <a-tag color="blue">{{ suiteDetail.testcase_count }} 个用例</a-tag>
+                <a-tag color="purple">{{ suiteDetail.script_count || 0 }} 个脚本</a-tag>
+              </a-space>
             </a-descriptions-item>
             <a-descriptions-item label="创建时间">
               {{ formatDate(suiteDetail.created_at) }}
@@ -36,25 +39,52 @@
           </a-descriptions>
         </div>
 
-        <!-- 用例列表 -->
+        <!-- 标签页：用例列表和脚本列表 -->
         <div class="detail-section">
-          <h3 class="section-title">关联用例列表</h3>
-          <a-table
-            v-if="suiteDetail.testcases_detail && suiteDetail.testcases_detail.length > 0"
-            :columns="testCaseColumns"
-            :data="suiteDetail.testcases_detail"
-            :pagination="false"
-            :bordered="{ cell: true }"
-            row-key="id"
-            size="small"
-          >
-            <template #level="{ record }">
-              <a-tag :color="getLevelColor(record.level)">
-                {{ record.level }}
-              </a-tag>
-            </template>
-          </a-table>
-          <a-empty v-else description="该套件暂无关联用例" />
+          <a-tabs default-active-key="testcases">
+            <a-tab-pane key="testcases" :title="`功能用例 (${suiteDetail.testcase_count})`">
+              <a-table
+                v-if="suiteDetail.testcases_detail && suiteDetail.testcases_detail.length > 0"
+                :columns="testCaseColumns"
+                :data="suiteDetail.testcases_detail"
+                :pagination="false"
+                :bordered="{ cell: true }"
+                row-key="id"
+                size="small"
+              >
+                <template #level="{ record }">
+                  <a-tag :color="getLevelColor(record.level)">
+                    {{ record.level }}
+                  </a-tag>
+                </template>
+              </a-table>
+              <a-empty v-else description="该套件暂无关联用例" />
+            </a-tab-pane>
+
+            <a-tab-pane key="scripts" :title="`自动化脚本 (${suiteDetail.script_count || 0})`">
+              <a-table
+                v-if="suiteDetail.scripts_detail && suiteDetail.scripts_detail.length > 0"
+                :columns="scriptColumns"
+                :data="suiteDetail.scripts_detail"
+                :pagination="false"
+                :bordered="{ cell: true }"
+                row-key="id"
+                size="small"
+              >
+                <template #status="{ record }">
+                  <a-tag :color="getStatusColor(record.status)">
+                    {{ getStatusText(record.status) }}
+                  </a-tag>
+                </template>
+                <template #source="{ record }">
+                  <a-tag :color="getSourceColor(record.source)">
+                    {{ getSourceText(record.source) }}
+                  </a-tag>
+                </template>
+              </a-table>
+              <a-empty v-else description="该套件暂无关联脚本" />
+            </a-tab-pane>
+          </a-tabs>
         </div>
       </div>
     </a-spin>
@@ -65,7 +95,6 @@
 import { ref, watch, computed } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { getTestSuiteDetail, type TestSuite } from '@/services/testSuiteService';
-import type { TestCase } from '@/services/testcaseService';
 
 interface Props {
   visible: boolean;
@@ -95,7 +124,15 @@ const testCaseColumns = [
   { title: 'ID', dataIndex: 'id', width: 80, align: 'center' as const },
   { title: '用例名称', dataIndex: 'name', ellipsis: true, tooltip: true, align: 'center' as const },
   { title: '优先级', dataIndex: 'level', slotName: 'level', width: 100, align: 'center' as const },
-  { title: '模块', dataIndex: 'module_detail', ellipsis: true, tooltip: true, width: 200, align: 'center' as const },
+  { title: '模块', dataIndex: 'module_detail', ellipsis: true, tooltip: true, width: 180, align: 'center' as const },
+];
+
+const scriptColumns = [
+  { title: 'ID', dataIndex: 'id', width: 80, align: 'center' as const },
+  { title: '脚本名称', dataIndex: 'name', ellipsis: true, tooltip: true, align: 'center' as const },
+  { title: '关联用例', dataIndex: 'test_case_name', ellipsis: true, tooltip: true, width: 150, align: 'center' as const },
+  { title: '状态', dataIndex: 'status', slotName: 'status', width: 80, align: 'center' as const },
+  { title: '来源', dataIndex: 'source', slotName: 'source', width: 100, align: 'center' as const },
 ];
 
 const formatDate = (dateString: string) => {
@@ -119,6 +156,42 @@ const getLevelColor = (level: string) => {
     'P3': 'gray',
   };
   return colorMap[level] || 'gray';
+};
+
+const getStatusColor = (status: string) => {
+  const map: Record<string, string> = {
+    draft: 'gray',
+    active: 'green',
+    deprecated: 'red',
+  };
+  return map[status] || 'gray';
+};
+
+const getStatusText = (status: string) => {
+  const map: Record<string, string> = {
+    draft: '草稿',
+    active: '可用',
+    deprecated: '已弃用',
+  };
+  return map[status] || status;
+};
+
+const getSourceColor = (source: string) => {
+  const map: Record<string, string> = {
+    ai_generated: 'arcoblue',
+    manual: 'purple',
+    imported: 'orange',
+  };
+  return map[source] || 'gray';
+};
+
+const getSourceText = (source: string) => {
+  const map: Record<string, string> = {
+    ai_generated: 'AI生成',
+    manual: '手动编写',
+    imported: '导入',
+  };
+  return map[source] || source;
 };
 
 const fetchSuiteDetail = async () => {

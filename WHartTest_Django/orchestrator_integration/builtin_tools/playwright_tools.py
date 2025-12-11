@@ -323,7 +323,7 @@ def get_playwright_tools(
 - 截图数: {len(execution.screenshots or [])}
 """
             
-            if execution.status == 'passed':
+            if execution.status == 'pass':
                 result += f"\n输出日志:\n{execution.output or '(无输出)'}"
             else:
                 result += f"\n错误信息:\n{execution.error_message or '(无错误信息)'}"

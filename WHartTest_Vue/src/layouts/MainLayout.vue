@@ -95,6 +95,10 @@
               <template #icon><icon-code-block /></template>
               <a href="#" @click="checkProjectAndNavigate($event, '/testcases')">用例管理</a>
             </a-menu-item>
+            <a-menu-item key="automation-scripts" v-if="hasAutomationScriptsPermission">
+              <template #icon><icon-robot /></template>
+              <a href="#" @click="checkProjectAndNavigate($event, '/automation-scripts')">UI用例</a>
+            </a-menu-item>
             <a-menu-item key="testsuites" v-if="hasTestSuitesPermission">
               <template #icon><icon-folder /></template>
               <a href="#" @click="checkProjectAndNavigate($event, '/testsuites')">测试套件</a>
@@ -102,10 +106,6 @@
             <a-menu-item key="test-executions" v-if="hasTestExecutionsPermission">
               <template #icon><icon-history /></template>
               <a href="#" @click="checkProjectAndNavigate($event, '/test-executions')">执行历史</a>
-            </a-menu-item>
-            <a-menu-item key="automation-scripts" v-if="hasAutomationScriptsPermission">
-              <template #icon><icon-robot /></template>
-              <a href="#" @click="checkProjectAndNavigate($event, '/automation-scripts')">自动化用例</a>
             </a-menu-item>
           </a-sub-menu>
 

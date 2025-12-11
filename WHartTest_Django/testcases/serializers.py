@@ -290,16 +290,29 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         queryset=TestCase.objects.all(),
         source='testcases',
         many=True,
-        write_only=True
+        write_only=True,
+        required=False
     )
     testcases_detail = TestCaseSerializer(source='testcases', many=True, read_only=True)
     testcase_count = serializers.SerializerMethodField()
+    
+    # 自动化脚本关联
+    script_ids = serializers.PrimaryKeyRelatedField(
+        queryset=AutomationScript.objects.all(),
+        source='automation_scripts',
+        many=True,
+        write_only=True,
+        required=False
+    )
+    scripts_detail = serializers.SerializerMethodField()
+    script_count = serializers.SerializerMethodField()
     
     class Meta:
         model = TestSuite
         fields = [
             'id', 'name', 'description', 'project',
             'testcase_ids', 'testcases_detail', 'testcase_count',
+            'script_ids', 'scripts_detail', 'script_count',
             'max_concurrent_tasks',
             'creator', 'creator_detail', 'created_at', 'updated_at'
         ]
@@ -309,10 +322,19 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         """获取套件中的用例数量"""
         return obj.testcases.count()
     
+    def get_script_count(self, obj):
+        """获取套件中的脚本数量"""
+        return obj.automation_scripts.count()
+    
+    def get_scripts_detail(self, obj):
+        """获取脚本详情（避免循环引用）"""
+        from .serializers import AutomationScriptSerializer
+        return AutomationScriptSerializer(obj.automation_scripts.all(), many=True).data
+    
     def validate_testcase_ids(self, value):
         """验证测试用例是否属于同一项目"""
         if not value:
-            raise serializers.ValidationError("测试套件至少需要包含一个测试用例")
+            return value  # 可以为空，因为可能只有脚本
         
         # 获取项目ID (创建时从context获取，更新时从instance获取)
         if self.instance:
@@ -332,6 +354,60 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         
         return value
     
+    def validate_script_ids(self, value):
+        """验证自动化脚本是否属于同一项目"""
+        if not value:
+            return value  # 可以为空
+        
+        # 获取项目ID
+        if self.instance:
+            project_id = self.instance.project_id
+        else:
+            project_id = self.context.get('project_id')
+        
+        if not project_id:
+            raise serializers.ValidationError("无法确定项目ID")
+        
+        # 检查所有脚本的关联用例是否属于同一项目
+        for script in value:
+            if script.test_case and script.test_case.project_id != project_id:
+                raise serializers.ValidationError(
+                    f"脚本 '{script.name}' 关联的用例不属于当前项目"
+                )
+        
+        return value
+    
+    def validate(self, attrs):
+        """整体验证：至少需要一个用例或脚本"""
+        # 如果是部分更新，需要结合现有实例的数据进行验证
+        if self.instance:
+            # 获取现有数据或新数据
+            testcases = attrs.get('testcases')
+            if testcases is None:
+                # 如果请求中没有 testcases，检查实例中是否已有
+                has_testcases = self.instance.testcases.exists()
+            else:
+                has_testcases = bool(testcases)
+                
+            scripts = attrs.get('automation_scripts')
+            if scripts is None:
+                # 如果请求中没有 automation_scripts，检查实例中是否已有
+                has_scripts = self.instance.automation_scripts.exists()
+            else:
+                has_scripts = bool(scripts)
+                
+            if not has_testcases and not has_scripts:
+                raise serializers.ValidationError("测试套件至少需要包含一个测试用例或自动化脚本")
+        else:
+            # 创建时，直接检查请求数据
+            testcases = attrs.get('testcases', [])
+            scripts = attrs.get('automation_scripts', [])
+            
+            if not testcases and not scripts:
+                raise serializers.ValidationError("测试套件至少需要包含一个测试用例或自动化脚本")
+        
+        return attrs
+    
     def validate_max_concurrent_tasks(self, value):
         """验证并发数配置"""
         if value < 1:
@@ -341,13 +417,18 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         return value
     
     def create(self, validated_data):
-        testcases = validated_data.pop('testcases')
+        testcases = validated_data.pop('testcases', [])
+        scripts = validated_data.pop('automation_scripts', [])
         suite = TestSuite.objects.create(**validated_data)
-        suite.testcases.set(testcases)
+        if testcases:
+            suite.testcases.set(testcases)
+        if scripts:
+            suite.automation_scripts.set(scripts)
         return suite
     
     def update(self, instance, validated_data):
         testcases = validated_data.pop('testcases', None)
+        scripts = validated_data.pop('automation_scripts', None)
         
         instance.name = validated_data.get('name', instance.name)
         instance.description = validated_data.get('description', instance.description)
@@ -356,6 +437,8 @@ class TestSuiteSerializer(serializers.ModelSerializer):
         
         if testcases is not None:
             instance.testcases.set(testcases)
+        if scripts is not None:
+            instance.automation_scripts.set(scripts)
         
         return instance
 
@@ -396,6 +479,25 @@ class TestCaseResultSerializer(serializers.ModelSerializer):
         return relative_urls
 
 
+class ScriptExecutionSerializer(serializers.ModelSerializer):
+    """脚本执行记录序列化器"""
+    executor_detail = UserDetailSerializer(source='executor', read_only=True)
+    
+    class Meta:
+        model = ScriptExecution
+        fields = [
+            'id', 'script', 'status', 'started_at', 'completed_at',
+            'execution_time', 'output', 'error_message', 'stack_trace',
+            'screenshots', 'videos', 'browser_type', 'viewport', 'executor',
+            'executor_detail', 'created_at', 'duration'
+        ]
+        read_only_fields = [
+            'id', 'started_at', 'completed_at', 'execution_time',
+            'output', 'error_message', 'stack_trace', 'screenshots', 'videos',
+            'executor_detail', 'created_at', 'duration'
+        ]
+
+
 class TestExecutionSerializer(serializers.ModelSerializer):
     """
     测试执行记录序列化器
@@ -403,6 +505,7 @@ class TestExecutionSerializer(serializers.ModelSerializer):
     suite_detail = TestSuiteSerializer(source='suite', read_only=True)
     executor_detail = UserDetailSerializer(source='executor', read_only=True)
     results = TestCaseResultSerializer(many=True, read_only=True)
+    script_results = ScriptExecutionSerializer(many=True, read_only=True)
     duration = serializers.ReadOnlyField()
     pass_rate = serializers.ReadOnlyField()
     
@@ -412,7 +515,7 @@ class TestExecutionSerializer(serializers.ModelSerializer):
             'id', 'suite', 'suite_detail', 'status', 'executor', 'executor_detail',
             'started_at', 'completed_at', 'total_count', 'passed_count',
             'failed_count', 'skipped_count', 'error_count', 'celery_task_id',
-            'duration', 'pass_rate', 'results', 'created_at', 'updated_at'
+            'duration', 'pass_rate', 'results', 'script_results', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'status', 'started_at', 'completed_at',
@@ -432,31 +535,12 @@ class TestExecutionCreateSerializer(serializers.Serializer):
         """验证套件是否存在"""
         try:
             suite = TestSuite.objects.get(id=value)
-            # 验证套件是否有测试用例
-            if not suite.testcases.exists():
-                raise serializers.ValidationError("测试套件中没有测试用例")
+            # 验证套件是否有测试用例或自动化脚本
+            if not suite.testcases.exists() and not suite.automation_scripts.exists():
+                raise serializers.ValidationError("测试套件中没有测试用例或自动化脚本")
             return value
         except TestSuite.DoesNotExist:
             raise serializers.ValidationError("测试套件不存在")
-
-
-class ScriptExecutionSerializer(serializers.ModelSerializer):
-    """脚本执行记录序列化器"""
-    executor_detail = UserDetailSerializer(source='executor', read_only=True)
-    
-    class Meta:
-        model = ScriptExecution
-        fields = [
-            'id', 'script', 'status', 'started_at', 'completed_at',
-            'execution_time', 'output', 'error_message', 'stack_trace',
-            'screenshots', 'videos', 'browser_type', 'viewport', 'executor',
-            'executor_detail', 'created_at', 'duration'
-        ]
-        read_only_fields = [
-            'id', 'started_at', 'completed_at', 'execution_time',
-            'output', 'error_message', 'stack_trace', 'screenshots', 'videos',
-            'executor_detail', 'created_at', 'duration'
-        ]
 
 
 class AutomationScriptSerializer(serializers.ModelSerializer):

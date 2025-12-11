@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.http import HttpResponse
+from django.conf import settings
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 import io
@@ -18,6 +19,34 @@ from .permissions import IsProjectMemberForTestCase, IsProjectMemberForTestCaseM
 from .filters import TestCaseFilter # 导入自定义过滤器
 # 确保导入项目自定义的权限类
 from wharttest_django.permissions import HasModelPermission, permission_required
+
+
+def _normalize_media_url(url: str) -> str:
+    """
+    规范化媒体URL，确保正确添加MEDIA_URL前缀
+    避免双重前缀问题（如 /media//media/...）
+    """
+    if not url:
+        return url
+    
+    # 如果已经是完整的HTTP URL，直接返回
+    if url.startswith('http://') or url.startswith('https://'):
+        return url
+    
+    # 规范化路径分隔符（将反斜杠替换为正斜杠）
+    url = url.replace('\\', '/')
+    
+    media_url = settings.MEDIA_URL.rstrip('/')  # 通常是 '/media'
+    
+    # 如果已经以 MEDIA_URL 开头，直接返回
+    if url.startswith(media_url + '/') or url.startswith(media_url):
+        return url
+    
+    # 如果以 / 开头，去掉开头的 /
+    if url.startswith('/'):
+        url = url[1:]
+    
+    return f"{media_url}/{url}"
 
 class TestCaseViewSet(viewsets.ModelViewSet):
     """
@@ -778,15 +807,38 @@ class TestExecutionViewSet(viewsets.ModelViewSet):
             'results': []
         }
         
-        # 添加详细结果
+        # 添加用例执行结果
         for result in execution.results.all().select_related('testcase'):
+            screenshots_urls = [
+                _normalize_media_url(path) for path in (result.screenshots or [])
+            ]
             report_data['results'].append({
                 'testcase_id': result.testcase.id,
                 'testcase_name': result.testcase.name,
                 'status': result.status,
                 'error_message': result.error_message,
                 'execution_time': result.execution_time,
-                'screenshots': result.screenshots,
+                'screenshots': screenshots_urls,
+            })
+        
+        # 添加脚本执行结果
+        report_data['script_results'] = []
+        for script_result in execution.script_results.all().select_related('script'):
+            screenshots_urls = [
+                _normalize_media_url(path) for path in (script_result.screenshots or [])
+            ]
+            videos_urls = [
+                _normalize_media_url(path) for path in (script_result.videos or [])
+            ]
+            report_data['script_results'].append({
+                'script_id': script_result.script.id,
+                'script_name': script_result.script.name,
+                'status': script_result.status,
+                'error_message': script_result.error_message,
+                'execution_time': script_result.execution_time,
+                'output': script_result.output,
+                'screenshots': screenshots_urls,
+                'videos': videos_urls,
             })
         
         return Response(report_data)

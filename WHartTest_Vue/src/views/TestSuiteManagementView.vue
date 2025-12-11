@@ -55,7 +55,10 @@
           <span v-else>-</span>
         </template>
         <template #testcase_count="{ record }">
-          <a-tag color="blue">{{ record.testcase_count }} 个用例</a-tag>
+          <a-space :size="4">
+            <a-tag color="blue">{{ record.testcase_count }} 用例</a-tag>
+            <a-tag color="purple">{{ record.script_count || 0 }} 脚本</a-tag>
+          </a-space>
         </template>
         <template #created_at="{ record }">
           {{ formatDate(record.created_at) }}
@@ -150,18 +153,18 @@ const paginationConfig = reactive({
 
 const columns = [
   { title: 'ID', dataIndex: 'id', width: 60, align: 'center' as const },
-  { title: '套件名称', dataIndex: 'name', slotName: 'name', width: 250, ellipsis: true, tooltip: false, align: 'center' as const },
-  { title: '描述', dataIndex: 'description', slotName: 'description', width: 200, ellipsis: true, tooltip: false, align: 'center' as const },
-  { title: '用例数量', dataIndex: 'testcase_count', slotName: 'testcase_count', width: 100, align: 'center' as const },
+  { title: '套件名称', dataIndex: 'name', slotName: 'name', width: 220, ellipsis: true, tooltip: false, align: 'center' as const },
+  { title: '描述', dataIndex: 'description', slotName: 'description', width: 180, ellipsis: true, tooltip: false, align: 'center' as const },
+  { title: '测试内容', dataIndex: 'testcase_count', slotName: 'testcase_count', width: 160, align: 'center' as const },
   {
     title: '创建者',
     dataIndex: 'creator_detail',
     render: ({ record }: { record: TestSuite }) => record.creator_detail?.username || '-',
-    width: 120,
+    width: 100,
     align: 'center' as const,
   },
-  { title: '创建时间', dataIndex: 'created_at', slotName: 'created_at', width: 160, align: 'center' as const },
-  { title: '操作', slotName: 'operations', width: 250, fixed: 'right' as const, align: 'center' as const },
+  { title: '创建时间', dataIndex: 'created_at', slotName: 'created_at', width: 150, align: 'center' as const },
+  { title: '操作', slotName: 'operations', width: 230, fixed: 'right' as const, align: 'center' as const },
 ];
 
 // 获取测试套件列表
@@ -234,8 +237,9 @@ const handleViewDetail = (suite: TestSuite) => {
 
 // 执行测试套件
 const handleExecute = (suite: TestSuite) => {
-  if (suite.testcase_count === 0) {
-    Message.warning('该测试套件没有用例，无法执行');
+  const totalCount = (suite.testcase_count || 0) + (suite.script_count || 0);
+  if (totalCount === 0) {
+    Message.warning('该测试套件没有用例或脚本，无法执行');
     return;
   }
   selectedSuite.value = suite;

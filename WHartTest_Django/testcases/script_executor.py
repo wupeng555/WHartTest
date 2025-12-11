@@ -384,10 +384,10 @@ def execute_automation_script(
         execution.output = result['output']
         
         if result['success']:
-            execution.status = 'passed'
+            execution.status = 'pass'
             logger.info(f"[execute_automation_script] ✅ 执行成功, 耗时: {result['execution_time']:.2f}秒")
         else:
-            execution.status = 'failed'
+            execution.status = 'fail'
             execution.error_message = result['error_message']
             execution.stack_trace = result['stack_trace']
             logger.error(f"[execute_automation_script] ❌ 执行失败: {result['error_message']}")

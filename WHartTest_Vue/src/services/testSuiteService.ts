@@ -4,6 +4,22 @@ import { useAuthStore } from '@/store/authStore';
 import { API_BASE_URL } from '@/config/api';
 import type { TestCase } from './testcaseService';
 
+// 自动化脚本接口（简化版，用于套件关联）
+export interface AutomationScriptBrief {
+  id: number;
+  name: string;
+  test_case: number;
+  test_case_name?: string;
+  script_type: string;
+  source: string;
+  status: string;
+  version: number;
+  description?: string;
+  timeout_seconds: number;
+  headless: boolean;
+  created_at: string;
+}
+
 // 测试套件接口
 export interface TestSuite {
   id: number;
@@ -11,8 +27,10 @@ export interface TestSuite {
   description?: string;
   project: number;
   testcase_count: number;
+  script_count: number;
   max_concurrent_tasks: number;
   testcases_detail?: TestCase[];
+  scripts_detail?: AutomationScriptBrief[];
   creator: number;
   creator_detail: {
     id: number;
@@ -27,7 +45,8 @@ export interface TestSuite {
 export interface CreateTestSuiteRequest {
   name: string;
   description?: string;
-  testcase_ids: number[];
+  testcase_ids?: number[];
+  script_ids?: number[];
   max_concurrent_tasks?: number;
 }
 
@@ -36,6 +55,7 @@ export interface UpdateTestSuiteRequest {
   name?: string;
   description?: string;
   testcase_ids?: number[];
+  script_ids?: number[];
   max_concurrent_tasks?: number;
 }
 
