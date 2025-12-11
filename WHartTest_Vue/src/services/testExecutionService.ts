@@ -31,7 +31,7 @@ export interface ScriptExecutionResult {
   script: number;
   script_name?: string;
   test_execution?: number;
-  status: 'pending' | 'running' | 'passed' | 'failed' | 'error' | 'cancelled';
+  status: 'pending' | 'running' | 'pass' | 'fail' | 'error' | 'cancelled';
   started_at?: string;
   completed_at?: string;
   execution_time?: number;

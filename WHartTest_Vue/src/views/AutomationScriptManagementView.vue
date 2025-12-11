@@ -1080,8 +1080,8 @@ const getExecutionStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     'pending': '等待中',
     'running': '执行中',
-    'passed': '通过',
-    'failed': '失败',
+    'pass': '通过',
+    'fail': '失败',
     'error': '错误',
     'cancelled': '已取消',
   };
@@ -1092,8 +1092,8 @@ const getExecutionStatusColor = (status: string) => {
   const map: Record<string, string> = {
     'pending': 'gray',
     'running': 'blue',
-    'passed': 'green',
-    'failed': 'red',
+    'pass': 'green',
+    'fail': 'red',
     'error': 'orange',
     'cancelled': 'gray',
   };
