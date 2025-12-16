@@ -1120,15 +1120,28 @@ class ChatHistoryAPIView(APIView):
         try:
             deleted_count = delete_checkpoints_by_thread_id(thread_id)
 
-            if deleted_count > 0:
-                message = f"Successfully deleted chat history for session_id: {session_id} (Thread ID: {thread_id}). {deleted_count} records removed."
+            # 同时删除 Django ChatSession 记录
+            django_deleted_count = 0
+            try:
+                deleted_result = ChatSession.objects.filter(
+                    session_id=session_id,
+                    user=request.user,
+                    project=project
+                ).delete()
+                django_deleted_count = deleted_result[0]
+                logger.info(f"ChatHistoryAPIView: Deleted {django_deleted_count} ChatSession records for session_id: {session_id}")
+            except Exception as e:
+                logger.warning(f"ChatHistoryAPIView: Failed to delete ChatSession for {session_id}: {e}")
+
+            if deleted_count > 0 or django_deleted_count > 0:
+                message = f"Successfully deleted chat history for session_id: {session_id} (Thread ID: {thread_id}). {deleted_count} checkpoint records and {django_deleted_count} session records removed."
             else:
                 message = f"No chat history found for session_id: {session_id} (Thread ID: {thread_id}) to delete."
 
             return Response({
                 "status": "success", "code": status.HTTP_200_OK,
                 "message": message,
-                "data": {"thread_id": thread_id, "session_id": session_id, "deleted_count": deleted_count}
+                "data": {"thread_id": thread_id, "session_id": session_id, "deleted_count": deleted_count, "session_deleted_count": django_deleted_count}
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
