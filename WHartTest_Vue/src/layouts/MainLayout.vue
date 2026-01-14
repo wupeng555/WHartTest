@@ -107,6 +107,10 @@
               <template #icon><icon-history /></template>
               <a href="#" @click="checkProjectAndNavigate($event, '/test-executions')">执行历史</a>
             </a-menu-item>
+            <a-menu-item key="testcase-review" v-if="hasTestCaseReviewPermission">
+              <template #icon><icon-robot /></template>
+              <a href="#" @click="checkProjectAndNavigate($event, '/testcase-review')">用例评审</a>
+            </a-menu-item>
           </a-sub-menu>
 
           <a-menu-item key="langgraph-chat" v-if="hasLangGraphChatPermission">
@@ -247,6 +251,7 @@ const activeMenu = computed(() => {
   if (path.startsWith('/test-executions')) return 'test-executions'; // 添加对执行历史路由的识别
   if (path.startsWith('/automation-scripts')) return 'automation-scripts'; // 添加对自动化用例路由的识别
   if (path.startsWith('/testcases')) return 'testcases';
+  if (path.startsWith('/testcase-review')) return 'testcase-review';
   if (path.startsWith('/users')) return 'users';
   if (path.startsWith('/organizations')) return 'organizations';
   if (path.startsWith('/permissions')) return 'permissions';
@@ -291,6 +296,10 @@ const hasAutomationScriptsPermission = computed(() => {
   return authStore.hasPermission('testcases.view_automationscript');
 });
 
+const hasTestCaseReviewPermission = computed(() => {
+  return authStore.hasPermission('testcase_review.view_testcasereview');
+});
+
 const hasLangGraphChatPermission = computed(() => {
   return authStore.hasPermission('langgraph_integration.view_llmconfig') ||
          authStore.hasPermission('langgraph_integration.view_chatsession') ||
@@ -333,7 +342,8 @@ const hasTestManagementMenuItems = computed(() => {
   return hasTestcasesPermission.value ||
          hasTestSuitesPermission.value ||
          hasTestExecutionsPermission.value ||
-         hasAutomationScriptsPermission.value;
+         hasAutomationScriptsPermission.value ||
+         hasTestCaseReviewPermission.value;
 });
 
 // 检查是否有系统管理菜单项的权限

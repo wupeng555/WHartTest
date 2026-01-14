@@ -55,6 +55,7 @@ urlpatterns = [
     path('api/mcp_tools/', include('mcp_tools.urls')), # MCP Tools URLs
     path('api/', include('api_keys.urls')), # API Keys URLs
     path('api/knowledge/', include('knowledge.urls')), # Knowledge Base URLs
+    path('', include('testcase_review.urls')), # Test Case Review URLs
     path('api/prompts/', include('prompts.urls')), # 提示词管理 URLs
     path('api/requirements/', include('requirements.urls')), # 需求评审管理 URLs
     path('api/orchestrator/', include('orchestrator_integration.urls')), # 智能编排 URLs
