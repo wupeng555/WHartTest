@@ -90,6 +90,7 @@ INSTALLED_APPS = [
     'api_keys', # API Keys Management App
     'knowledge', # Knowledge Base Management App
     'testcase_review', # Test Case Review App
+    'automation_scripts', # Automation Scripts App
     'prompts', # 提示词管理应用
     'requirements', # 需求评审管理应用
     'orchestrator_integration', # 智能编排集成应用

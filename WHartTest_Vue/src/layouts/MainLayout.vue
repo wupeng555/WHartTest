@@ -99,6 +99,14 @@
               <template #icon><icon-robot /></template>
               <a href="#" @click="checkProjectAndNavigate($event, '/automation-scripts')">UI脚本库</a>
             </a-menu-item>
+            <a-menu-item key="midscene-scripts" v-if="hasMidsceneScriptsPermission">
+              <template #icon><icon-code /></template>
+              <a href="#" @click="checkProjectAndNavigate($event, '/midscene-scripts')">Midscene脚本</a>
+            </a-menu-item>
+            <a-menu-item key="test-reports" v-if="hasTestReportsPermission">
+              <template #icon><icon-file-text /></template>
+              <a href="#" @click="checkProjectAndNavigate($event, '/test-reports')">测试报告</a>
+            </a-menu-item>
             <a-menu-item key="testsuites" v-if="hasTestSuitesPermission">
               <template #icon><icon-folder /></template>
               <a href="#" @click="checkProjectAndNavigate($event, '/testsuites')">测试套件</a>
@@ -250,6 +258,7 @@ const activeMenu = computed(() => {
   if (path.startsWith('/testsuites')) return 'testsuites'; // 添加对测试套件路由的识别
   if (path.startsWith('/test-executions')) return 'test-executions'; // 添加对执行历史路由的识别
   if (path.startsWith('/automation-scripts')) return 'automation-scripts'; // 添加对自动化用例路由的识别
+  if (path.startsWith('/midscene-scripts')) return 'midscene-scripts'; // 添加对Midscene脚本路由的识别\n  if (path.startsWith('/test-reports')) return 'test-reports'; // 添加对测试报告路由的识别
   if (path.startsWith('/testcases')) return 'testcases';
   if (path.startsWith('/testcase-review')) return 'testcase-review';
   if (path.startsWith('/users')) return 'users';
@@ -294,6 +303,14 @@ const hasTestExecutionsPermission = computed(() => {
 
 const hasAutomationScriptsPermission = computed(() => {
   return authStore.hasPermission('testcases.view_automationscript');
+});
+
+const hasMidsceneScriptsPermission = computed(() => {
+  return authStore.hasPermission('automation_scripts.view_automationscript');
+});
+
+const hasTestReportsPermission = computed(() => {
+  return authStore.hasPermission('automation_scripts.view_scriptexecution');
 });
 
 const hasTestCaseReviewPermission = computed(() => {
@@ -343,6 +360,8 @@ const hasTestManagementMenuItems = computed(() => {
          hasTestSuitesPermission.value ||
          hasTestExecutionsPermission.value ||
          hasAutomationScriptsPermission.value ||
+         hasMidsceneScriptsPermission.value ||
+         hasTestReportsPermission.value ||
          hasTestCaseReviewPermission.value;
 });
 
